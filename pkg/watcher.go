@@ -94,7 +94,11 @@ func (w *watcher) Poll(ctx context.Context) error {
 	}
 
 	if previous.Less(latest) {
-		w.emit(ctx, cursor, previous, latest)
+		if err := w.emit(ctx, cursor, previous, latest); err != nil {
+			w.metrics.IncPollCycle("build_error")
+			glog.Errorf("emit task failed latest=%s: %v", latest, err)
+			return nil
+		}
 	} else {
 		w.metrics.IncFilterSkipped("version_unchanged")
 		glog.V(2).Infof("version unchanged latest=%s cursor=%s", latest, previous)
@@ -131,19 +135,25 @@ func (w *watcher) seedFromConfigured(ctx context.Context, cursor *Cursor) error 
 }
 
 // emit builds and publishes one task for the advance from previous to latest,
-// advancing the cursor only when the publish succeeds.
-func (w *watcher) emit(ctx context.Context, cursor *Cursor, previous, latest Version) {
+// advancing the cursor only when the publish succeeds. A build error (e.g. a
+// template-execution failure) is returned so the caller can skip cleanly
+// without advancing the cursor.
+func (w *watcher) emit(ctx context.Context, cursor *Cursor, previous, latest Version) error {
 	releaseKind := "patch"
 	if latest.Major != previous.Major || latest.Minor != previous.Minor {
 		releaseKind = "minor"
 	}
-	cmd := BuildCreateCommand(latest.String(), previous.String(), releaseKind, w.cfg)
+	cmd, err := BuildCreateCommand(ctx, latest.String(), previous.String(), releaseKind, w.cfg)
+	if err != nil {
+		return errors.Wrapf(ctx, err, "build create command for %s", latest)
+	}
 	if !w.publisher.PublishCreate(ctx, cmd) {
-		return
+		return nil
 	}
 	cursor.LastSeenVersion = latest.String()
 	if err := SaveCursor(ctx, w.cursorPath, cursor); err != nil {
 		// Task was already published; controller dedup absorbs re-emit next cycle.
 		glog.Warningf("save cursor failed post-publish path=%s err=%v", w.cursorPath, err)
 	}
+	return nil
 }

@@ -15,6 +15,7 @@ import (
 	"context"
 	"net/http"
 	"os"
+	"text/template"
 	"time"
 
 	"github.com/bborbe/cqrs/base"
@@ -57,6 +58,9 @@ type application struct {
 	TaskSuffix   string `required:"false" arg:"task-suffix"   env:"TASK_SUFFIX"   usage:"Optional suffix appended to go-version task titles/filenames as ' - suffix'; empty = no suffix. Use distinct values per deployment to prevent task-file collisions."`
 	TargetVault  string `required:"false" arg:"target-vault"  env:"TARGET_VAULT"  usage:"Obsidian vault slug the task-controller materializes the task into (e.g. 'personal', 'openclaw'). Empty = controller default (openclaw)."`
 
+	TaskTitleTemplate string `required:"false" arg:"task-title-template" env:"TASK_TITLE_TEMPLATE" usage:"Go text/template overriding the emitted task title; empty = built-in default 'Update Go to {{.Number}}'. Fields: Version, Number, ReleaseKind, PreviousVersion, ReleaseNotesURL, DownloadsURL."`
+	TaskBodyTemplate  string `required:"false" arg:"task-body-template"  env:"TASK_BODY_TEMPLATE"  usage:"Go text/template overriding the emitted task body; empty = built-in default body. Fields: Version, Number, ReleaseKind, PreviousVersion, ReleaseNotesURL, DownloadsURL."`
+
 	// TopicPrefix selects the Kafka topic prefix used for CQRS topic construction
 	// (e.g. "develop" / "master"); independent of Stage. Empty means unprefixed topics.
 	TopicPrefix base.TopicPrefix `required:"false" arg:"topic-prefix" env:"TOPIC_PREFIX" usage:"Kafka topic prefix for CQRS topic construction"`
@@ -74,6 +78,15 @@ func (a *application) Run(ctx context.Context, _ libsentry.Client) error {
 		}
 	}
 
+	titleTemplate, err := parseOptionalTemplate(ctx, "title", a.TaskTitleTemplate)
+	if err != nil {
+		return errors.Wrapf(ctx, err, "parse task title template")
+	}
+	bodyTemplate, err := parseOptionalTemplate(ctx, "body", a.TaskBodyTemplate)
+	if err != nil {
+		return errors.Wrapf(ctx, err, "parse task body template")
+	}
+
 	syncProducer, err := libkafka.NewSyncProducerWithName(ctx, a.KafkaBrokers, "go-version-watcher")
 	if err != nil {
 		return errors.Wrap(ctx, err, "create sync producer")
@@ -88,11 +101,13 @@ func (a *application) Run(ctx context.Context, _ libsentry.Client) error {
 	metrics := pkg.NewMetrics(nil)
 	sender := factory.CreateKafkaSender(syncProducer, a.TopicPrefix, a.TargetVault)
 	w := factory.CreateWatcher(httpClient, sender, a.CursorPath, metrics, pkg.TaskConfig{
-		Stage:    a.Stage,
-		Assignee: a.TaskAssignee,
-		Status:   a.TaskStatus,
-		Phase:    a.TaskPhase,
-		Suffix:   a.TaskSuffix,
+		Stage:         a.Stage,
+		Assignee:      a.TaskAssignee,
+		Status:        a.TaskStatus,
+		Phase:         a.TaskPhase,
+		Suffix:        a.TaskSuffix,
+		TitleTemplate: titleTemplate,
+		BodyTemplate:  bodyTemplate,
 	}, a.SeedVersion)
 
 	glog.V(2).Infof(
@@ -104,6 +119,24 @@ func (a *application) Run(ctx context.Context, _ libsentry.Client) error {
 		a.pollLoop(w.Poll, pollInterval),
 		a.createHTTPServer(w),
 	)
+}
+
+// parseOptionalTemplate parses text as a named Go text/template, returning nil
+// when text is empty (⇒ the built-in default is used). A parse failure is
+// returned wrapped so startup fails fast on a malformed template.
+func parseOptionalTemplate(
+	ctx context.Context,
+	name string,
+	text string,
+) (*template.Template, error) {
+	if text == "" {
+		return nil, nil
+	}
+	tmpl, err := template.New(name).Parse(text)
+	if err != nil {
+		return nil, errors.Wrapf(ctx, err, "parse %s template %q", name, text)
+	}
+	return tmpl, nil
 }
 
 // createHTTPServer serves the mandatory triple (/healthz, /readiness, /metrics)
