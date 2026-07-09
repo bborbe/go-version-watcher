@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## v0.4.0
+
+- Add `TARGET_VAULT` env (standard task-routing param alongside `TASK_ASSIGNEE`/`TASK_STATUS`/`TASK_PHASE`/`TASK_SUFFIX`): sets the emitted `CreateCommand.TargetVault` (via the sender's default-vault) so the task-controller materializes the task into the named Obsidian vault (e.g. `personal` → `24 Tasks/`). Empty = controller default (openclaw).
+
 ## v0.3.0
 
 - Add `SEED_VERSION` env (cold-start seeds a lower version so the first poll

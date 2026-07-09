@@ -55,6 +55,7 @@ type Application struct {
 	// TopicPrefix selects the Kafka topic prefix used for CQRS topic construction
 	// (e.g. "develop" / "master"); independent of Stage. Empty means unprefixed topics.
 	TopicPrefix    base.TopicPrefix `required:"false" arg:"topic-prefix"  env:"TOPIC_PREFIX"  usage:"Kafka topic prefix for CQRS topic construction"`
+	TargetVault    string           `required:"false" arg:"target-vault"  env:"TARGET_VAULT"  usage:"Obsidian vault slug for the emitted task (e.g. 'personal'); empty = controller default (openclaw)."`
 	CreateWatcher  WatcherFactory
 	CreateProducer ProducerFactory
 }
@@ -92,7 +93,7 @@ func (a *Application) Run(ctx context.Context, _ libsentry.Client) error {
 
 	httpClient := &http.Client{Timeout: httpClientTimeout}
 	metrics := pkg.NewMetrics(prometheus.NewRegistry())
-	sender := factory.CreateKafkaSender(syncProducer, a.TopicPrefix)
+	sender := factory.CreateKafkaSender(syncProducer, a.TopicPrefix, a.TargetVault)
 	w := a.CreateWatcher(httpClient, sender, a.CursorPath, metrics, pkg.TaskConfig{
 		Stage:    a.Stage,
 		Assignee: "human",

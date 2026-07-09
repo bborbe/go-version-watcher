@@ -18,13 +18,15 @@ import (
 )
 
 // CreateKafkaSender constructs a typed create-task command sender backed by a
-// Kafka sync producer.
+// Kafka sync producer. defaultVault is the Obsidian vault slug substituted into
+// each command's TargetVault when unset (empty = controller default, openclaw).
 func CreateKafkaSender(
 	syncProducer libkafka.SyncProducer,
 	topicPrefix base.TopicPrefix,
+	defaultVault string,
 ) task.CreateCommandSender {
 	sender := cdb.NewCommandObjectSender(syncProducer, topicPrefix, log.DefaultSamplerFactory)
-	return task.NewCreateCommandSender(sender, "")
+	return task.NewCreateCommandSender(sender, defaultVault)
 }
 
 // CreateWatcher wires all dependencies and returns a ready-to-use Watcher.
