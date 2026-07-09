@@ -62,7 +62,7 @@ func buildFrontmatter(
 	return agentlib.TaskFrontmatter{
 		"task_type":         "go-version-update",
 		"assignee":          "human",
-		"phase":             "planning",
+		"phase":             "todo",
 		"status":            "in_progress",
 		"stage":             cfg.Stage,
 		"task_identifier":   taskIDStr,

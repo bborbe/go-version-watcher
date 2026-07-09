@@ -24,7 +24,7 @@ var _ = Describe("pkg.BuildCreateCommand", func() {
 
 		Expect(cmd.Frontmatter["task_type"]).To(Equal("go-version-update"))
 		Expect(cmd.Frontmatter["assignee"]).To(Equal("human"))
-		Expect(cmd.Frontmatter["phase"]).To(Equal("planning"))
+		Expect(cmd.Frontmatter["phase"]).To(Equal("todo"))
 		Expect(cmd.Frontmatter["status"]).To(Equal("in_progress"))
 		Expect(cmd.Frontmatter["stage"]).To(Equal("prod"))
 		Expect(cmd.Frontmatter["title"]).To(Equal("Update Go to 1.27.0"))
