@@ -13,6 +13,8 @@ import (
 	agentlib "github.com/bborbe/agent"
 	task "github.com/bborbe/agent/command/task"
 	"github.com/bborbe/errors"
+
+	"github.com/bborbe/go-version-watcher/pkg/tasktemplate"
 )
 
 // TaskConfig groups per-task envelope settings (stage routing + emitted-task
@@ -24,9 +26,9 @@ type TaskConfig struct {
 	Phase    string // frontmatter `phase` (default "todo")
 	Suffix   string // optional title/filename suffix appended as " - <suffix>"; empty = none
 
-	// TitleTemplate overrides the emitted-task title; nil ⇒ defaultTitleTemplate.
+	// TitleTemplate overrides the emitted-task title; nil ⇒ tasktemplate.DefaultTitle.
 	TitleTemplate *template.Template
-	// BodyTemplate overrides the emitted-task body; nil ⇒ defaultBodyTemplate.
+	// BodyTemplate overrides the emitted-task body; nil ⇒ tasktemplate.DefaultBody.
 	BodyTemplate *template.Template
 }
 
@@ -46,19 +48,6 @@ const releaseNotesBaseURL = "https://go.dev/doc/devel/release#"
 
 // downloadsURL is the go.dev downloads page.
 const downloadsURL = "https://go.dev/dl/"
-
-// defaultTitleTemplate renders the built-in emitted-task title when no
-// TASK_TITLE_TEMPLATE override is configured.
-var defaultTitleTemplate = template.Must(template.New("title").Parse("Update Go to {{.Number}}"))
-
-// defaultBodyTemplate renders the built-in emitted-task body when no
-// TASK_BODY_TEMPLATE override is configured.
-var defaultBodyTemplate = template.Must(template.New("body").Parse(
-	"# Update Go to {{.Number}}\n\n" +
-		"Go {{.Number}} released ({{.ReleaseKind}}). Update your Go projects to this version.\n" +
-		"- Release notes: {{.ReleaseNotesURL}}\n" +
-		"- Downloads: {{.DownloadsURL}}\n",
-))
 
 // BuildCreateCommand assembles the CreateTaskCommand for a new Go version.
 // newVersion and previousVersion are canonical go-version strings (e.g.
@@ -82,13 +71,13 @@ func BuildCreateCommand(
 		DownloadsURL:    downloadsURL,
 	}
 
-	renderedTitle, err := renderTemplate(ctx, cfg.TitleTemplate, defaultTitleTemplate, data)
+	renderedTitle, err := renderTemplate(ctx, cfg.TitleTemplate, tasktemplate.DefaultTitle, data)
 	if err != nil {
 		return task.CreateCommand{}, errors.Wrapf(ctx, err, "render task title")
 	}
 	title := applySuffix(renderedTitle, cfg.Suffix)
 
-	body, err := renderTemplate(ctx, cfg.BodyTemplate, defaultBodyTemplate, data)
+	body, err := renderTemplate(ctx, cfg.BodyTemplate, tasktemplate.DefaultBody, data)
 	if err != nil {
 		return task.CreateCommand{}, errors.Wrapf(ctx, err, "render task body")
 	}

@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+- Move the built-in default title/body templates into a dedicated `pkg/tasktemplate` package that `//go:embed`s `default-title.md` + `default-body.md` (mirrors `agent-claude/pkg/prompts`). Defaults are now authored as markdown files instead of inline Go string literals; no behavior change.
+
 ## v0.5.1
 
 - Make the built-in default task body deployment-agnostic — drop the vault-specific `[[Go - Update Version]]` runbook reference and "bborbe Go repos" wording so the watcher is reusable as-is by anyone. Deployment-specific content (e.g. a runbook link) now comes from `TASK_BODY_TEMPLATE`.
