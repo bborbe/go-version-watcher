@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+- Make the built-in default task body deployment-agnostic — drop the vault-specific `[[Go - Update Version]]` runbook reference and "bborbe Go repos" wording so the watcher is reusable as-is by anyone. Deployment-specific content (e.g. a runbook link) now comes from `TASK_BODY_TEMPLATE`.
+
 ## v0.5.0
 
 - Add `TASK_TITLE_TEMPLATE` and `TASK_BODY_TEMPLATE` envs — Go text/template overrides for the emitted task's title and body (fields: Version, Number, ReleaseKind, PreviousVersion, ReleaseNotesURL, DownloadsURL); empty = built-in bborbe defaults. Lets Quant and Octopus deployments customize task content.

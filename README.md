@@ -1,6 +1,8 @@
 # go-version-watcher
 
-Polls [`https://go.dev/dl/?mode=json`](https://go.dev/dl/?mode=json) on an interval, computes the maximum `stable:true` Go version, and publishes one deduplicated `CreateTaskCommand` to Kafka per new version so the [`Go - Update Version`] runbook can be run across the bborbe Go repos.
+Polls [`https://go.dev/dl/?mode=json`](https://go.dev/dl/?mode=json) on an interval, computes the maximum `stable:true` Go version, and publishes one deduplicated `CreateTaskCommand` to Kafka per new version so a downstream task system can act on it.
+
+The emitted task title and body are plain, deployment-agnostic defaults out of the box; set `TASK_TITLE_TEMPLATE` / `TASK_BODY_TEMPLATE` (Go `text/template`) to inject deployment-specific content — e.g. a link to your own update runbook.
 
 The watcher is the **producer** (Layer 1 detection) half of the pipeline. It never modifies any repo. It emits one global "new Go released" signal; deciding which repos need a bump is a future Layer 2 fan-out service.
 
@@ -34,7 +36,7 @@ release_kind: minor        # minor | patch
 release_notes_url: https://go.dev/doc/devel/release#go1.27.0
 ```
 
-Body is an operator-readable header only (title + release-notes URL + downloads URL + a line to run the `Go - Update Version` runbook).
+Body is an operator-readable header only (title + release-notes URL + downloads URL). The built-in default is deployment-agnostic; override it per deployment with `TASK_BODY_TEMPLATE` to add e.g. a runbook link.
 
 ## Environment Variables
 

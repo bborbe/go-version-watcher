@@ -18,7 +18,7 @@ import (
 // goldenDefaultBody is the exact default body for go1.27.0 (minor). Any change
 // to buildTaskBody's default output must be a deliberate edit here too.
 const goldenDefaultBody = "# Update Go to 1.27.0\n\n" +
-	"Go 1.27.0 released (minor). Run [[Go - Update Version]] across bborbe Go repos.\n" +
+	"Go 1.27.0 released (minor). Update your Go projects to this version.\n" +
 	"- Release notes: https://go.dev/doc/devel/release#go1.27.0\n" +
 	"- Downloads: https://go.dev/dl/\n"
 
@@ -147,7 +147,7 @@ var _ = Describe("pkg.BuildCreateCommand", func() {
 		Expect(cmd.Body).To(Equal("go1.27.0 is a minor release (prev go1.26.5)"))
 	})
 
-	It("body is an operator-readable header referencing the runbook and URLs", func() {
+	It("default body is vault-agnostic — an operator-readable header plus URLs", func() {
 		cmd, err := pkg.BuildCreateCommand(
 			ctx,
 			"go1.27.0",
@@ -158,9 +158,12 @@ var _ = Describe("pkg.BuildCreateCommand", func() {
 		Expect(err).NotTo(HaveOccurred())
 
 		Expect(cmd.Body).To(ContainSubstring("Go 1.27.0 released (minor)"))
-		Expect(cmd.Body).To(ContainSubstring("[[Go - Update Version]]"))
 		Expect(cmd.Body).To(ContainSubstring("https://go.dev/doc/devel/release#go1.27.0"))
 		Expect(cmd.Body).To(ContainSubstring("https://go.dev/dl/"))
+		// The built-in default must stay reusable by anyone — no [[wikilinks]] or
+		// deployment-specific references. Vault-specific bodies come from
+		// TASK_BODY_TEMPLATE per deployment (e.g. quant).
+		Expect(cmd.Body).NotTo(ContainSubstring("[["))
 	})
 
 	It("classifies a patch bump title correctly", func() {
