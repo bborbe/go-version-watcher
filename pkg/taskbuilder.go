@@ -55,7 +55,7 @@ var defaultTitleTemplate = template.Must(template.New("title").Parse("Update Go 
 // TASK_BODY_TEMPLATE override is configured.
 var defaultBodyTemplate = template.Must(template.New("body").Parse(
 	"# Update Go to {{.Number}}\n\n" +
-		"Go {{.Number}} released ({{.ReleaseKind}}). Run [[Go - Update Version]] across bborbe Go repos.\n" +
+		"Go {{.Number}} released ({{.ReleaseKind}}). Update your Go projects to this version.\n" +
 		"- Release notes: {{.ReleaseNotesURL}}\n" +
 		"- Downloads: {{.DownloadsURL}}\n",
 ))
