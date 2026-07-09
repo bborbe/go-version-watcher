@@ -36,7 +36,7 @@ func CreateWatcher(
 	sender task.CreateCommandSender,
 	cursorPath string,
 	metrics pkg.Metrics,
-	stage string,
+	cfg pkg.TaskConfig,
 ) pkg.Watcher {
 	client := pkg.NewGoDevClient(httpClient, pkg.DefaultGoDevURL)
 	publisher := pkg.NewTaskPublisher(sender, metrics)
@@ -45,6 +45,6 @@ func CreateWatcher(
 		publisher,
 		metrics,
 		cursorPath,
-		pkg.TaskConfig{Stage: stage},
+		cfg,
 	)
 }

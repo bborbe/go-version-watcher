@@ -65,7 +65,7 @@ type WatcherFactory func(
 	sender task.CreateCommandSender,
 	cursorPath string,
 	metrics pkg.Metrics,
-	stage string,
+	cfg pkg.TaskConfig,
 ) pkg.Watcher
 
 // ProducerFactory creates a Kafka sync producer. Matches
@@ -91,7 +91,12 @@ func (a *Application) Run(ctx context.Context, _ libsentry.Client) error {
 	httpClient := &http.Client{Timeout: httpClientTimeout}
 	metrics := pkg.NewMetrics(prometheus.NewRegistry())
 	sender := factory.CreateKafkaSender(syncProducer, a.TopicPrefix)
-	w := a.CreateWatcher(httpClient, sender, a.CursorPath, metrics, a.Stage)
+	w := a.CreateWatcher(httpClient, sender, a.CursorPath, metrics, pkg.TaskConfig{
+		Stage:    a.Stage,
+		Assignee: "human",
+		Status:   "in_progress",
+		Phase:    "todo",
+	})
 
 	if err := w.Poll(ctx); err != nil {
 		return errors.Wrap(ctx, err, "poll failed")

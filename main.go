@@ -50,6 +50,11 @@ type application struct {
 	CursorPath   string           `required:"false" arg:"cursor-path"   env:"CURSOR_PATH"   usage:"Cursor persistence path (mount a PVC)"           default:"/data/cursor.json"`
 	KafkaBrokers libkafka.Brokers `required:"true"  arg:"kafka-brokers" env:"KAFKA_BROKERS" usage:"Comma-separated Kafka broker list"`
 
+	TaskAssignee string `required:"true"  arg:"task-assignee" env:"TASK_ASSIGNEE" usage:"Frontmatter assignee for published go-version tasks"                                                                                                                 default:"human"`
+	TaskStatus   string `required:"true"  arg:"task-status"   env:"TASK_STATUS"   usage:"Frontmatter status for published go-version tasks"                                                                                                                   default:"in_progress"`
+	TaskPhase    string `required:"true"  arg:"task-phase"    env:"TASK_PHASE"    usage:"Frontmatter phase for published go-version tasks"                                                                                                                    default:"todo"`
+	TaskSuffix   string `required:"false" arg:"task-suffix"   env:"TASK_SUFFIX"   usage:"Optional suffix appended to go-version task titles/filenames as ' - suffix'; empty = no suffix. Use distinct values per deployment to prevent task-file collisions."`
+
 	// TopicPrefix selects the Kafka topic prefix used for CQRS topic construction
 	// (e.g. "develop" / "master"); independent of Stage. Empty means unprefixed topics.
 	TopicPrefix base.TopicPrefix `required:"false" arg:"topic-prefix" env:"TOPIC_PREFIX" usage:"Kafka topic prefix for CQRS topic construction"`
@@ -74,7 +79,13 @@ func (a *application) Run(ctx context.Context, _ libsentry.Client) error {
 	httpClient := &http.Client{Timeout: httpClientTimeout}
 	metrics := pkg.NewMetrics(nil)
 	sender := factory.CreateKafkaSender(syncProducer, a.TopicPrefix)
-	w := factory.CreateWatcher(httpClient, sender, a.CursorPath, metrics, a.Stage)
+	w := factory.CreateWatcher(httpClient, sender, a.CursorPath, metrics, pkg.TaskConfig{
+		Stage:    a.Stage,
+		Assignee: a.TaskAssignee,
+		Status:   a.TaskStatus,
+		Phase:    a.TaskPhase,
+		Suffix:   a.TaskSuffix,
+	})
 
 	glog.V(2).Infof(
 		"go-version-watcher starting stage=%s interval=%s listen=%s",

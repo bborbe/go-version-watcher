@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## v0.2.0
+
+- Emitted-task assignee/status/phase and an optional title suffix are now
+  env-configurable (`TASK_ASSIGNEE`/`TASK_STATUS`/`TASK_PHASE`/`TASK_SUFFIX`),
+  defaulting to human/in_progress/todo/none. Enables distinct routing per
+  deployment (quant vs octopus).
+
 ## v0.1.0
 
 - Initial release. Polls `https://go.dev/dl/?mode=json` on an interval, computes the

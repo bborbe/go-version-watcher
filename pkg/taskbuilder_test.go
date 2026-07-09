@@ -19,7 +19,12 @@ var _ = Describe("pkg.BuildCreateCommand", func() {
 			"go1.27.0",
 			"go1.26.5",
 			"minor",
-			pkg.TaskConfig{Stage: "prod"},
+			pkg.TaskConfig{
+				Stage:    "prod",
+				Assignee: "human",
+				Status:   "in_progress",
+				Phase:    "todo",
+			},
 		)
 
 		Expect(cmd.Frontmatter["task_type"]).To(Equal("go-version-update"))
@@ -37,6 +42,27 @@ var _ = Describe("pkg.BuildCreateCommand", func() {
 			To(Equal(pkg.DeriveTaskID("go1.27.0").String()))
 		Expect(string(cmd.TaskIdentifier)).To(Equal(cmd.Frontmatter["task_identifier"]))
 		Expect(cmd.Title).To(Equal("Update Go to 1.27.0"))
+	})
+
+	It("reflects env-configurable assignee/status/phase and a title suffix", func() {
+		cmd := pkg.BuildCreateCommand(
+			"go1.27.0",
+			"go1.26.5",
+			"minor",
+			pkg.TaskConfig{
+				Stage:    "prod",
+				Assignee: "me",
+				Status:   "next",
+				Phase:    "planning",
+				Suffix:   "octopus",
+			},
+		)
+
+		Expect(cmd.Frontmatter["assignee"]).To(Equal("me"))
+		Expect(cmd.Frontmatter["status"]).To(Equal("next"))
+		Expect(cmd.Frontmatter["phase"]).To(Equal("planning"))
+		Expect(cmd.Frontmatter["title"]).To(Equal("Update Go to 1.27.0 - octopus"))
+		Expect(cmd.Title).To(Equal("Update Go to 1.27.0 - octopus"))
 	})
 
 	It("body is an operator-readable header referencing the runbook and URLs", func() {
