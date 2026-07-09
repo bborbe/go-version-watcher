@@ -30,7 +30,11 @@ var _ = Describe("pkg.TaskPublisher", func() {
 	var cmd task.CreateCommand
 
 	BeforeEach(func() {
-		cmd = pkg.BuildCreateCommand("go1.27.0", "go1.26.5", "minor", pkg.TaskConfig{Stage: "dev"})
+		var err error
+		cmd, err = pkg.BuildCreateCommand(
+			context.Background(), "go1.27.0", "go1.26.5", "minor", pkg.TaskConfig{Stage: "dev"},
+		)
+		Expect(err).NotTo(HaveOccurred())
 	})
 
 	It("returns true and calls IncPublished(\"create\") on send success", func() {

@@ -5,7 +5,9 @@
 package pkg_test
 
 import (
+	"context"
 	"strings"
+	"text/template"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
@@ -13,9 +15,29 @@ import (
 	"github.com/bborbe/go-version-watcher/pkg"
 )
 
+// goldenDefaultBody is the exact default body for go1.27.0 (minor). Any change
+// to buildTaskBody's default output must be a deliberate edit here too.
+const goldenDefaultBody = "# Update Go to 1.27.0\n\n" +
+	"Go 1.27.0 released (minor). Run [[Go - Update Version]] across bborbe Go repos.\n" +
+	"- Release notes: https://go.dev/doc/devel/release#go1.27.0\n" +
+	"- Downloads: https://go.dev/dl/\n"
+
 var _ = Describe("pkg.BuildCreateCommand", func() {
+	var ctx context.Context
+
+	mustParse := func(name, text string) *template.Template {
+		tmpl, err := template.New(name).Parse(text)
+		Expect(err).NotTo(HaveOccurred())
+		return tmpl
+	}
+
+	BeforeEach(func() {
+		ctx = context.Background()
+	})
+
 	It("produces the exact go-version-update frontmatter", func() {
-		cmd := pkg.BuildCreateCommand(
+		cmd, err := pkg.BuildCreateCommand(
+			ctx,
 			"go1.27.0",
 			"go1.26.5",
 			"minor",
@@ -26,6 +48,7 @@ var _ = Describe("pkg.BuildCreateCommand", func() {
 				Phase:    "todo",
 			},
 		)
+		Expect(err).NotTo(HaveOccurred())
 
 		Expect(cmd.Frontmatter["task_type"]).To(Equal("go-version-update"))
 		Expect(cmd.Frontmatter["assignee"]).To(Equal("human"))
@@ -44,8 +67,21 @@ var _ = Describe("pkg.BuildCreateCommand", func() {
 		Expect(cmd.Title).To(Equal("Update Go to 1.27.0"))
 	})
 
+	It("renders the default body byte-for-byte (golden)", func() {
+		cmd, err := pkg.BuildCreateCommand(
+			ctx,
+			"go1.27.0",
+			"go1.26.5",
+			"minor",
+			pkg.TaskConfig{Stage: "dev"},
+		)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(cmd.Body).To(Equal(goldenDefaultBody))
+	})
+
 	It("reflects env-configurable assignee/status/phase and a title suffix", func() {
-		cmd := pkg.BuildCreateCommand(
+		cmd, err := pkg.BuildCreateCommand(
+			ctx,
 			"go1.27.0",
 			"go1.26.5",
 			"minor",
@@ -57,6 +93,7 @@ var _ = Describe("pkg.BuildCreateCommand", func() {
 				Suffix:   "octopus",
 			},
 		)
+		Expect(err).NotTo(HaveOccurred())
 
 		Expect(cmd.Frontmatter["assignee"]).To(Equal("me"))
 		Expect(cmd.Frontmatter["status"]).To(Equal("next"))
@@ -65,8 +102,60 @@ var _ = Describe("pkg.BuildCreateCommand", func() {
 		Expect(cmd.Title).To(Equal("Update Go to 1.27.0 - octopus"))
 	})
 
+	It("renders a custom title template", func() {
+		cmd, err := pkg.BuildCreateCommand(
+			ctx,
+			"go1.27.0",
+			"go1.26.5",
+			"minor",
+			pkg.TaskConfig{
+				Stage:         "dev",
+				TitleTemplate: mustParse("title", "Go {{.Number}} is out"),
+			},
+		)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(cmd.Title).To(Equal("Go 1.27.0 is out"))
+		Expect(cmd.Frontmatter["title"]).To(Equal("Go 1.27.0 is out"))
+	})
+
+	It("appends the suffix to a custom-templated title", func() {
+		cmd, err := pkg.BuildCreateCommand(
+			ctx, "go1.27.0", "go1.26.5", "minor",
+			pkg.TaskConfig{
+				Stage:         "dev",
+				Suffix:        "octopus",
+				TitleTemplate: mustParse("title", "Go {{.Number}} is out"),
+			},
+		)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(cmd.Title).To(Equal("Go 1.27.0 is out - octopus"))
+		Expect(cmd.Frontmatter["title"]).To(Equal("Go 1.27.0 is out - octopus"))
+	})
+
+	It("renders a custom body template using Version and ReleaseKind", func() {
+		cmd, err := pkg.BuildCreateCommand(
+			ctx, "go1.27.0", "go1.26.5", "minor",
+			pkg.TaskConfig{
+				Stage: "dev",
+				BodyTemplate: mustParse(
+					"body",
+					"{{.Version}} is a {{.ReleaseKind}} release (prev {{.PreviousVersion}})",
+				),
+			},
+		)
+		Expect(err).NotTo(HaveOccurred())
+		Expect(cmd.Body).To(Equal("go1.27.0 is a minor release (prev go1.26.5)"))
+	})
+
 	It("body is an operator-readable header referencing the runbook and URLs", func() {
-		cmd := pkg.BuildCreateCommand("go1.27.0", "go1.26.5", "minor", pkg.TaskConfig{Stage: "dev"})
+		cmd, err := pkg.BuildCreateCommand(
+			ctx,
+			"go1.27.0",
+			"go1.26.5",
+			"minor",
+			pkg.TaskConfig{Stage: "dev"},
+		)
+		Expect(err).NotTo(HaveOccurred())
 
 		Expect(cmd.Body).To(ContainSubstring("Go 1.27.0 released (minor)"))
 		Expect(cmd.Body).To(ContainSubstring("[[Go - Update Version]]"))
@@ -75,17 +164,58 @@ var _ = Describe("pkg.BuildCreateCommand", func() {
 	})
 
 	It("classifies a patch bump title correctly", func() {
-		cmd := pkg.BuildCreateCommand("go1.26.5", "go1.26.4", "patch", pkg.TaskConfig{Stage: "dev"})
+		cmd, err := pkg.BuildCreateCommand(
+			ctx,
+			"go1.26.5",
+			"go1.26.4",
+			"patch",
+			pkg.TaskConfig{Stage: "dev"},
+		)
+		Expect(err).NotTo(HaveOccurred())
 		Expect(cmd.Frontmatter["title"]).To(Equal("Update Go to 1.26.5"))
 		Expect(cmd.Frontmatter["release_kind"]).To(Equal("patch"))
 	})
 
+	It("returns an error when a title template references a missing field", func() {
+		cmd, err := pkg.BuildCreateCommand(
+			ctx, "go1.27.0", "go1.26.5", "minor",
+			pkg.TaskConfig{Stage: "dev", TitleTemplate: mustParse("title", "{{.DoesNotExist}}")},
+		)
+		Expect(err).To(HaveOccurred())
+		Expect(cmd.Title).To(BeEmpty())
+		Expect(cmd.Frontmatter).To(BeNil())
+	})
+
+	It("rejects an invalid template string at parse time", func() {
+		_, err := template.New("title").Parse("{{.Number")
+		Expect(err).To(HaveOccurred())
+	})
+
 	It("same inputs produce identical commands", func() {
 		cfg := pkg.TaskConfig{Stage: "dev"}
-		cmd1 := pkg.BuildCreateCommand("go1.27.0", "go1.26.5", "minor", cfg)
-		cmd2 := pkg.BuildCreateCommand("go1.27.0", "go1.26.5", "minor", cfg)
+		cmd1, err1 := pkg.BuildCreateCommand(ctx, "go1.27.0", "go1.26.5", "minor", cfg)
+		cmd2, err2 := pkg.BuildCreateCommand(ctx, "go1.27.0", "go1.26.5", "minor", cfg)
+		Expect(err1).NotTo(HaveOccurred())
+		Expect(err2).NotTo(HaveOccurred())
 		Expect(cmd1.Frontmatter).To(Equal(cmd2.Frontmatter))
 		Expect(cmd1.TaskIdentifier).To(Equal(cmd2.TaskIdentifier))
 		Expect(strings.Contains(cmd1.Body, "\n- ")).To(BeTrue()) // header bullets only, not data
+	})
+
+	It("ParseTaskTemplate returns nil for empty text (use default)", func() {
+		tmpl, err := pkg.ParseTaskTemplate(ctx, "title", "")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(tmpl).To(BeNil())
+	})
+
+	It("ParseTaskTemplate accepts a valid template", func() {
+		tmpl, err := pkg.ParseTaskTemplate(ctx, "title", "Go {{.Number}} out")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(tmpl).NotTo(BeNil())
+	})
+
+	It("ParseTaskTemplate fails fast on a missing-field template", func() {
+		_, err := pkg.ParseTaskTemplate(ctx, "body", "{{.Nope}}")
+		Expect(err).To(HaveOccurred())
 	})
 })

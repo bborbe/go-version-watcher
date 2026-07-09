@@ -11,7 +11,7 @@ import "github.com/prometheus/client_golang/prometheus"
 // Metrics is the observable counter surface required by [[Watcher Writing Guide]]
 // § Required observability.
 type Metrics interface {
-	// IncPollCycle — result: "success" | "go_dev_error"
+	// IncPollCycle — result: "success" | "go_dev_error" | "build_error"
 	IncPollCycle(result string)
 
 	// IncPublished — status: "create" | "error"
@@ -53,7 +53,7 @@ func NewMetrics(registerer prometheus.Registerer) Metrics {
 		m.publishedTotal,
 		m.filterSkippedTotal,
 	)
-	for _, r := range []string{"success", "go_dev_error"} {
+	for _, r := range []string{"success", "go_dev_error", "build_error"} {
 		m.pollCycleTotal.WithLabelValues(r).Add(0)
 	}
 	for _, s := range []string{"create", "error"} {

@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+- Add `TASK_TITLE_TEMPLATE` and `TASK_BODY_TEMPLATE` envs — Go text/template overrides for the emitted task's title and body (fields: Version, Number, ReleaseKind, PreviousVersion, ReleaseNotesURL, DownloadsURL); empty = built-in bborbe defaults. Lets Quant and Octopus deployments customize task content.
+
 ## v0.4.0
 
 - Add `TARGET_VAULT` env (standard task-routing param alongside `TASK_ASSIGNEE`/`TASK_STATUS`/`TASK_PHASE`/`TASK_SUFFIX`): sets the emitted `CreateCommand.TargetVault` (via the sender's default-vault) so the task-controller materializes the task into the named Obsidian vault (e.g. `personal` → `24 Tasks/`). Empty = controller default (openclaw).
