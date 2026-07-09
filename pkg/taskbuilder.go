@@ -108,6 +108,36 @@ func BuildCreateCommand(
 	}, nil
 }
 
+// sampleTemplateData is a representative taskTemplateData used to validate a
+// configured template at startup: executing against it surfaces missing-field
+// references (which parse cleanly but fail at render time) before the first poll.
+var sampleTemplateData = taskTemplateData{
+	Version:         "go1.0.0",
+	Number:          "1.0.0",
+	ReleaseKind:     "patch",
+	PreviousVersion: "go0.9.0",
+	ReleaseNotesURL: releaseNotesBaseURL + "go1.0.0",
+	DownloadsURL:    downloadsURL,
+}
+
+// ParseTaskTemplate parses text as a named Go text/template and validates it by
+// rendering against sample data, so a template referencing an unknown field
+// fails fast at startup rather than silently skipping every emit. Empty text
+// returns (nil, nil) ⇒ the built-in default is used.
+func ParseTaskTemplate(ctx context.Context, name, text string) (*template.Template, error) {
+	if text == "" {
+		return nil, nil
+	}
+	tmpl, err := template.New(name).Parse(text)
+	if err != nil {
+		return nil, errors.Wrapf(ctx, err, "parse %s template %q", name, text)
+	}
+	if _, err := renderTemplate(ctx, tmpl, tmpl, sampleTemplateData); err != nil {
+		return nil, errors.Wrapf(ctx, err, "validate %s template %q", name, text)
+	}
+	return tmpl, nil
+}
+
 // renderTemplate executes tmpl (or fallback when tmpl is nil) against data and
 // returns the rendered string, wrapping any execution error.
 func renderTemplate(

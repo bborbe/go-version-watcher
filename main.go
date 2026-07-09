@@ -15,7 +15,6 @@ import (
 	"context"
 	"net/http"
 	"os"
-	"text/template"
 	"time"
 
 	"github.com/bborbe/cqrs/base"
@@ -78,13 +77,13 @@ func (a *application) Run(ctx context.Context, _ libsentry.Client) error {
 		}
 	}
 
-	titleTemplate, err := parseOptionalTemplate(ctx, "title", a.TaskTitleTemplate)
+	titleTemplate, err := pkg.ParseTaskTemplate(ctx, "title", a.TaskTitleTemplate)
 	if err != nil {
-		return errors.Wrapf(ctx, err, "parse task title template")
+		return errors.Wrapf(ctx, err, "task title template")
 	}
-	bodyTemplate, err := parseOptionalTemplate(ctx, "body", a.TaskBodyTemplate)
+	bodyTemplate, err := pkg.ParseTaskTemplate(ctx, "body", a.TaskBodyTemplate)
 	if err != nil {
-		return errors.Wrapf(ctx, err, "parse task body template")
+		return errors.Wrapf(ctx, err, "task body template")
 	}
 
 	syncProducer, err := libkafka.NewSyncProducerWithName(ctx, a.KafkaBrokers, "go-version-watcher")
@@ -119,24 +118,6 @@ func (a *application) Run(ctx context.Context, _ libsentry.Client) error {
 		a.pollLoop(w.Poll, pollInterval),
 		a.createHTTPServer(w),
 	)
-}
-
-// parseOptionalTemplate parses text as a named Go text/template, returning nil
-// when text is empty (⇒ the built-in default is used). A parse failure is
-// returned wrapped so startup fails fast on a malformed template.
-func parseOptionalTemplate(
-	ctx context.Context,
-	name string,
-	text string,
-) (*template.Template, error) {
-	if text == "" {
-		return nil, nil
-	}
-	tmpl, err := template.New(name).Parse(text)
-	if err != nil {
-		return nil, errors.Wrapf(ctx, err, "parse %s template %q", name, text)
-	}
-	return tmpl, nil
 }
 
 // createHTTPServer serves the mandatory triple (/healthz, /readiness, /metrics)

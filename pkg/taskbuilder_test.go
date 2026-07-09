@@ -201,4 +201,21 @@ var _ = Describe("pkg.BuildCreateCommand", func() {
 		Expect(cmd1.TaskIdentifier).To(Equal(cmd2.TaskIdentifier))
 		Expect(strings.Contains(cmd1.Body, "\n- ")).To(BeTrue()) // header bullets only, not data
 	})
+
+	It("ParseTaskTemplate returns nil for empty text (use default)", func() {
+		tmpl, err := pkg.ParseTaskTemplate(ctx, "title", "")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(tmpl).To(BeNil())
+	})
+
+	It("ParseTaskTemplate accepts a valid template", func() {
+		tmpl, err := pkg.ParseTaskTemplate(ctx, "title", "Go {{.Number}} out")
+		Expect(err).NotTo(HaveOccurred())
+		Expect(tmpl).NotTo(BeNil())
+	})
+
+	It("ParseTaskTemplate fails fast on a missing-field template", func() {
+		_, err := pkg.ParseTaskTemplate(ctx, "body", "{{.Nope}}")
+		Expect(err).To(HaveOccurred())
+	})
 })
