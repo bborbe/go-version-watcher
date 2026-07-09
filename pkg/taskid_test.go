@@ -5,10 +5,11 @@
 package pkg_test
 
 import (
-	"github.com/bborbe/go-version-watcher/pkg"
 	"github.com/google/uuid"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	"github.com/bborbe/go-version-watcher/pkg"
 )
 
 var _ = Describe("pkg.DeriveTaskID", func() {

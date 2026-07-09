@@ -15,13 +15,14 @@ import (
 	task "github.com/bborbe/agent/command/task"
 	"github.com/bborbe/cqrs/base"
 	"github.com/bborbe/errors"
-	"github.com/bborbe/go-version-watcher/pkg"
-	"github.com/bborbe/go-version-watcher/pkg/factory"
 	libkafka "github.com/bborbe/kafka"
 	libsentry "github.com/bborbe/sentry"
 	"github.com/bborbe/service"
 	"github.com/golang/glog"
 	"github.com/prometheus/client_golang/prometheus"
+
+	"github.com/bborbe/go-version-watcher/pkg"
+	"github.com/bborbe/go-version-watcher/pkg/factory"
 )
 
 // httpClientTimeout bounds the single go.dev request.
@@ -47,12 +48,12 @@ type Application struct {
 	SentryDSN   string `required:"false" arg:"sentry-dsn"   env:"SENTRY_DSN"   usage:"SentryDSN"    display:"length"`
 	SentryProxy string `required:"false" arg:"sentry-proxy" env:"SENTRY_PROXY" usage:"Sentry Proxy"`
 
-	Stage        string           `required:"true"  arg:"stage"        env:"STAGE"        usage:"Deployment stage (dev|prod)"`
-	CursorPath   string           `required:"false" arg:"cursor-path"  env:"CURSOR_PATH"  usage:"Cursor persistence path"          default:"/data/cursor.json"`
+	Stage        string           `required:"true"  arg:"stage"         env:"STAGE"         usage:"Deployment stage (dev|prod)"`
+	CursorPath   string           `required:"false" arg:"cursor-path"   env:"CURSOR_PATH"   usage:"Cursor persistence path"                        default:"/data/cursor.json"`
 	KafkaBrokers libkafka.Brokers `required:"true"  arg:"kafka-brokers" env:"KAFKA_BROKERS" usage:"Comma-separated Kafka broker list"`
 	// TopicPrefix selects the Kafka topic prefix used for CQRS topic construction
 	// (e.g. "develop" / "master"); independent of Stage. Empty means unprefixed topics.
-	TopicPrefix    base.TopicPrefix `required:"false" arg:"topic-prefix" env:"TOPIC_PREFIX" usage:"Kafka topic prefix for CQRS topic construction"`
+	TopicPrefix    base.TopicPrefix `required:"false" arg:"topic-prefix"  env:"TOPIC_PREFIX"  usage:"Kafka topic prefix for CQRS topic construction"`
 	CreateWatcher  WatcherFactory
 	CreateProducer ProducerFactory
 }

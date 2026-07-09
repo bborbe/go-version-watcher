@@ -9,10 +9,11 @@ import (
 	"errors"
 
 	task "github.com/bborbe/agent/command/task"
-	"github.com/bborbe/go-version-watcher/mocks"
-	"github.com/bborbe/go-version-watcher/pkg"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	"github.com/bborbe/go-version-watcher/mocks"
+	"github.com/bborbe/go-version-watcher/pkg"
 )
 
 type fakeCreateCommandSender struct {

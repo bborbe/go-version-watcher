@@ -9,9 +9,10 @@ import (
 	"net/http"
 	"net/http/httptest"
 
-	"github.com/bborbe/go-version-watcher/pkg"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	"github.com/bborbe/go-version-watcher/pkg"
 )
 
 var _ = Describe("pkg.GoDevClient", func() {

@@ -19,8 +19,6 @@ import (
 
 	"github.com/bborbe/cqrs/base"
 	"github.com/bborbe/errors"
-	"github.com/bborbe/go-version-watcher/pkg"
-	"github.com/bborbe/go-version-watcher/pkg/factory"
 	libhttp "github.com/bborbe/http"
 	libkafka "github.com/bborbe/kafka"
 	"github.com/bborbe/run"
@@ -29,6 +27,9 @@ import (
 	"github.com/golang/glog"
 	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+
+	"github.com/bborbe/go-version-watcher/pkg"
+	"github.com/bborbe/go-version-watcher/pkg/factory"
 )
 
 // httpClientTimeout bounds each go.dev request.
@@ -43,11 +44,11 @@ type application struct {
 	SentryDSN   string `required:"false" arg:"sentry-dsn"   env:"SENTRY_DSN"   usage:"SentryDSN"    display:"length"`
 	SentryProxy string `required:"false" arg:"sentry-proxy" env:"SENTRY_PROXY" usage:"Sentry Proxy"`
 
-	Listen       string           `required:"false" arg:"listen"        env:"LISTEN"        usage:"HTTP listen address (healthz/readiness/metrics)"  default:":9090"`
+	Listen       string           `required:"false" arg:"listen"        env:"LISTEN"        usage:"HTTP listen address (healthz/readiness/metrics)" default:":9090"`
 	Stage        string           `required:"true"  arg:"stage"         env:"STAGE"         usage:"Deployment stage (dev|prod)"`
-	PollInterval string           `required:"false" arg:"poll-interval" env:"POLL_INTERVAL" usage:"Poll interval (Go duration)"                      default:"24h"`
-	CursorPath   string           `required:"false" arg:"cursor-path"   env:"CURSOR_PATH"   usage:"Cursor persistence path (mount a PVC)"            default:"/data/cursor.json"`
-	KafkaBrokers libkafka.Brokers `required:"true"  arg:"kafka-brokers"  env:"KAFKA_BROKERS" usage:"Comma-separated Kafka broker list"`
+	PollInterval string           `required:"false" arg:"poll-interval" env:"POLL_INTERVAL" usage:"Poll interval (Go duration)"                     default:"24h"`
+	CursorPath   string           `required:"false" arg:"cursor-path"   env:"CURSOR_PATH"   usage:"Cursor persistence path (mount a PVC)"           default:"/data/cursor.json"`
+	KafkaBrokers libkafka.Brokers `required:"true"  arg:"kafka-brokers" env:"KAFKA_BROKERS" usage:"Comma-separated Kafka broker list"`
 
 	// TopicPrefix selects the Kafka topic prefix used for CQRS topic construction
 	// (e.g. "develop" / "master"); independent of Stage. Empty means unprefixed topics.

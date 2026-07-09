@@ -7,9 +7,10 @@ package pkg_test
 import (
 	"context"
 
-	"github.com/bborbe/go-version-watcher/pkg"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	"github.com/bborbe/go-version-watcher/pkg"
 )
 
 var _ = Describe("pkg.Version", func() {

@@ -7,14 +7,20 @@ package pkg_test
 import (
 	"strings"
 
-	"github.com/bborbe/go-version-watcher/pkg"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	"github.com/bborbe/go-version-watcher/pkg"
 )
 
 var _ = Describe("pkg.BuildCreateCommand", func() {
 	It("produces the exact go-version-update frontmatter", func() {
-		cmd := pkg.BuildCreateCommand("go1.27.0", "go1.26.5", "minor", pkg.TaskConfig{Stage: "prod"})
+		cmd := pkg.BuildCreateCommand(
+			"go1.27.0",
+			"go1.26.5",
+			"minor",
+			pkg.TaskConfig{Stage: "prod"},
+		)
 
 		Expect(cmd.Frontmatter["task_type"]).To(Equal("go-version-update"))
 		Expect(cmd.Frontmatter["assignee"]).To(Equal("human"))

@@ -9,9 +9,10 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/bborbe/go-version-watcher/pkg"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	"github.com/bborbe/go-version-watcher/pkg"
 )
 
 var _ = Describe("pkg.Cursor", func() {
@@ -58,7 +59,9 @@ var _ = Describe("pkg.Cursor", func() {
 
 		It("does atomic write — no .tmp file remains after success", func() {
 			path := filepath.Join(tmpDir, "atomic.json")
-			Expect(pkg.SaveCursor(ctx, path, &pkg.Cursor{LastSeenVersion: "go1.26.5"})).To(Succeed())
+			Expect(
+				pkg.SaveCursor(ctx, path, &pkg.Cursor{LastSeenVersion: "go1.26.5"}),
+			).To(Succeed())
 			_, err := os.Stat(path + ".tmp")
 			Expect(os.IsNotExist(err)).To(BeTrue())
 		})
@@ -67,7 +70,9 @@ var _ = Describe("pkg.Cursor", func() {
 	Describe("SaveCursor + LoadCursor round-trip", func() {
 		It("preserves LastSeenVersion", func() {
 			path := filepath.Join(tmpDir, "roundtrip.json")
-			Expect(pkg.SaveCursor(ctx, path, &pkg.Cursor{LastSeenVersion: "go1.27.0"})).To(Succeed())
+			Expect(
+				pkg.SaveCursor(ctx, path, &pkg.Cursor{LastSeenVersion: "go1.27.0"}),
+			).To(Succeed())
 			loaded, err := pkg.LoadCursor(ctx, path)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(loaded.LastSeenVersion).To(Equal("go1.27.0"))

@@ -14,14 +14,15 @@ import (
 	"github.com/IBM/sarama"
 	saramamocks "github.com/IBM/sarama/mocks"
 	task "github.com/bborbe/agent/command/task"
-	runonce "github.com/bborbe/go-version-watcher/cmd/run-once"
-	"github.com/bborbe/go-version-watcher/mocks"
-	"github.com/bborbe/go-version-watcher/pkg"
 	libkafka "github.com/bborbe/kafka"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/format"
 	"github.com/onsi/gomega/gexec"
+
+	runonce "github.com/bborbe/go-version-watcher/cmd/run-once"
+	"github.com/bborbe/go-version-watcher/mocks"
+	"github.com/bborbe/go-version-watcher/pkg"
 )
 
 // fakeProducerFactory returns a sarama mock SyncProducer that records calls in

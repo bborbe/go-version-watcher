@@ -10,10 +10,11 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/bborbe/go-version-watcher/mocks"
-	"github.com/bborbe/go-version-watcher/pkg"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+
+	"github.com/bborbe/go-version-watcher/mocks"
+	"github.com/bborbe/go-version-watcher/pkg"
 )
 
 var _ = Describe("pkg.Watcher.Poll", func() {

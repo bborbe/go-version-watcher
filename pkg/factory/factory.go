@@ -11,9 +11,10 @@ import (
 	task "github.com/bborbe/agent/command/task"
 	"github.com/bborbe/cqrs/base"
 	"github.com/bborbe/cqrs/cdb"
-	"github.com/bborbe/go-version-watcher/pkg"
 	libkafka "github.com/bborbe/kafka"
 	"github.com/bborbe/log"
+
+	"github.com/bborbe/go-version-watcher/pkg"
 )
 
 // CreateKafkaSender constructs a typed create-task command sender backed by a
