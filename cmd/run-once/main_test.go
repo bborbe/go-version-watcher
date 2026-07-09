@@ -62,6 +62,7 @@ var _ = Describe("Run", func() {
 			_ string,
 			_ pkg.Metrics,
 			_ pkg.TaskConfig,
+			_ string,
 		) pkg.Watcher {
 			return watcherMock
 		}

@@ -44,10 +44,11 @@ type application struct {
 	SentryDSN   string `required:"false" arg:"sentry-dsn"   env:"SENTRY_DSN"   usage:"SentryDSN"    display:"length"`
 	SentryProxy string `required:"false" arg:"sentry-proxy" env:"SENTRY_PROXY" usage:"Sentry Proxy"`
 
-	Listen       string           `required:"false" arg:"listen"        env:"LISTEN"        usage:"HTTP listen address (healthz/readiness/metrics)" default:":9090"`
+	Listen       string           `required:"false" arg:"listen"        env:"LISTEN"        usage:"HTTP listen address (healthz/readiness/metrics)"                                                                                                                                                         default:":9090"`
 	Stage        string           `required:"true"  arg:"stage"         env:"STAGE"         usage:"Deployment stage (dev|prod)"`
-	PollInterval string           `required:"false" arg:"poll-interval" env:"POLL_INTERVAL" usage:"Poll interval (Go duration)"                     default:"24h"`
-	CursorPath   string           `required:"false" arg:"cursor-path"   env:"CURSOR_PATH"   usage:"Cursor persistence path (mount a PVC)"           default:"/data/cursor.json"`
+	PollInterval string           `required:"false" arg:"poll-interval" env:"POLL_INTERVAL" usage:"Poll interval (Go duration)"                                                                                                                                                                             default:"24h"`
+	CursorPath   string           `required:"false" arg:"cursor-path"   env:"CURSOR_PATH"   usage:"Cursor persistence path (mount a PVC)"                                                                                                                                                                   default:"/data/cursor.json"`
+	SeedVersion  string           `required:"false" arg:"seed-version"  env:"SEED_VERSION"  usage:"Optional go version (e.g. go1.26.4) to seed the cursor with on cold-start instead of the current latest; makes the first poll emit a task for the current latest. Empty = seed to latest, emit nothing."`
 	KafkaBrokers libkafka.Brokers `required:"true"  arg:"kafka-brokers" env:"KAFKA_BROKERS" usage:"Comma-separated Kafka broker list"`
 
 	TaskAssignee string `required:"true"  arg:"task-assignee" env:"TASK_ASSIGNEE" usage:"Frontmatter assignee for published go-version tasks"                                                                                                                 default:"human"`
@@ -64,6 +65,12 @@ func (a *application) Run(ctx context.Context, _ libsentry.Client) error {
 	pollInterval, err := time.ParseDuration(a.PollInterval)
 	if err != nil {
 		return errors.Wrapf(ctx, err, "parse poll interval %q", a.PollInterval)
+	}
+
+	if a.SeedVersion != "" {
+		if _, err := pkg.ParseVersion(ctx, a.SeedVersion); err != nil {
+			return errors.Wrapf(ctx, err, "parse seed version %q", a.SeedVersion)
+		}
 	}
 
 	syncProducer, err := libkafka.NewSyncProducerWithName(ctx, a.KafkaBrokers, "go-version-watcher")
@@ -85,7 +92,7 @@ func (a *application) Run(ctx context.Context, _ libsentry.Client) error {
 		Status:   a.TaskStatus,
 		Phase:    a.TaskPhase,
 		Suffix:   a.TaskSuffix,
-	})
+	}, a.SeedVersion)
 
 	glog.V(2).Infof(
 		"go-version-watcher starting stage=%s interval=%s listen=%s",
@@ -94,17 +101,27 @@ func (a *application) Run(ctx context.Context, _ libsentry.Client) error {
 
 	return run.CancelOnFirstFinish(ctx,
 		a.pollLoop(w.Poll, pollInterval),
-		a.createHTTPServer(),
+		a.createHTTPServer(w),
 	)
 }
 
-// createHTTPServer serves the mandatory triple (/healthz, /readiness, /metrics).
-func (a *application) createHTTPServer() run.Func {
+// createHTTPServer serves the mandatory triple (/healthz, /readiness, /metrics)
+// plus the operational cursor-admin surface: /resetcursor (delete the cursor →
+// next poll cold-starts) and /setcursor/{version} (pin the last-seen version),
+// both dangerous-wrapped to require a passphrase, plus /trigger which forces one
+// immediate Poll. The watcher instance is shared with the poll loop so /trigger
+// drives the same collaborators.
+func (a *application) createHTTPServer(w pkg.Watcher) run.Func {
 	return func(ctx context.Context) error {
 		router := mux.NewRouter()
 		router.Path("/healthz").Handler(libhttp.NewPrintHandler("OK"))
 		router.Path("/readiness").Handler(libhttp.NewPrintHandler("OK"))
 		router.Path("/metrics").Handler(promhttp.Handler())
+		router.Path("/resetcursor").
+			Handler(libhttp.NewDangerousHandlerWrapper(pkg.NewResetCursorHandler(a.CursorPath)))
+		router.Path("/setcursor/{version}").
+			Handler(libhttp.NewDangerousHandlerWrapper(pkg.NewSetCursorHandler(a.CursorPath)))
+		router.Path("/trigger").Handler(pkg.NewTriggerHandler(w))
 		glog.V(2).Infof("http server listening on %s", a.Listen)
 		return libhttp.NewServer(a.Listen, router).Run(ctx)
 	}

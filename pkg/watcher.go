@@ -21,35 +21,44 @@ type Watcher interface {
 }
 
 // NewWatcher wires the watcher's collaborators.
+//
+// seedVersion, when non-empty, is the Go version the cursor is seeded with on
+// cold start instead of the current latest, so the first poll can emit a task
+// for the current latest. Empty means seed to latest and emit nothing.
 func NewWatcher(
 	client GoDevClient,
 	publisher TaskPublisher,
 	metrics Metrics,
 	cursorPath string,
 	cfg TaskConfig,
+	seedVersion string,
 ) Watcher {
 	return &watcher{
-		client:     client,
-		publisher:  publisher,
-		metrics:    metrics,
-		cursorPath: cursorPath,
-		cfg:        cfg,
+		client:      client,
+		publisher:   publisher,
+		metrics:     metrics,
+		cursorPath:  cursorPath,
+		cfg:         cfg,
+		seedVersion: seedVersion,
 	}
 }
 
 type watcher struct {
-	client     GoDevClient
-	publisher  TaskPublisher
-	metrics    Metrics
-	cursorPath string
-	cfg        TaskConfig
+	client      GoDevClient
+	publisher   TaskPublisher
+	metrics     Metrics
+	cursorPath  string
+	cfg         TaskConfig
+	seedVersion string
 }
 
 // Poll implements Watcher. One cycle:
 //  1. Load cursor (cold-start safe).
 //  2. Query go.dev for the max stable version — on error hold the cursor,
 //     record go_dev_error, return nil.
-//  3. Cold start (empty cursor): seed cursor to latest, emit nothing.
+//  3. Cold start (empty cursor): with no seedVersion, seed cursor to latest and
+//     emit nothing; with a seedVersion, seed cursor to that lower version and
+//     fall through to the comparison so the first poll emits a task for latest.
 //  4. latest > cursor: build + publish one task; advance cursor on publish success.
 //  5. latest <= cursor: record version_unchanged (no task).
 //  6. Record success.
@@ -67,9 +76,16 @@ func (w *watcher) Poll(ctx context.Context) error {
 	}
 
 	if cursor.LastSeenVersion == "" {
-		w.seedCursor(ctx, cursor, latest)
-		w.metrics.IncPollCycle("success")
-		return nil
+		if w.seedVersion == "" {
+			w.seedCursor(ctx, cursor, latest)
+			w.metrics.IncPollCycle("success")
+			return nil
+		}
+		if err := w.seedFromConfigured(ctx, cursor); err != nil {
+			return errors.Wrapf(ctx, err, "seed cursor from configured version")
+		}
+		// Fall through: compare latest against the seeded version so a task is
+		// emitted when latest > seedVersion and the cursor advances to latest.
 	}
 
 	previous, err := ParseVersion(ctx, cursor.LastSeenVersion)
@@ -96,6 +112,22 @@ func (w *watcher) seedCursor(ctx context.Context, cursor *Cursor, latest Version
 		glog.Warningf("save cursor failed on cold-start path=%s err=%v", w.cursorPath, err)
 	}
 	glog.V(2).Infof("cold-start seed version=%s", latest)
+}
+
+// seedFromConfigured seeds the cold-start cursor with the configured
+// seedVersion (a version lower than the current latest) and persists it, so the
+// caller can fall through to the normal comparison and emit a task for latest.
+// Returns an error if seedVersion is not a valid Go version.
+func (w *watcher) seedFromConfigured(ctx context.Context, cursor *Cursor) error {
+	if _, err := ParseVersion(ctx, w.seedVersion); err != nil {
+		return errors.Wrapf(ctx, err, "parse seed version %q", w.seedVersion)
+	}
+	cursor.LastSeenVersion = w.seedVersion
+	if err := SaveCursor(ctx, w.cursorPath, cursor); err != nil {
+		glog.Warningf("save cursor failed on cold-start seed path=%s err=%v", w.cursorPath, err)
+	}
+	glog.V(2).Infof("cold-start seed from configured version=%s", w.seedVersion)
+	return nil
 }
 
 // emit builds and publishes one task for the advance from previous to latest,

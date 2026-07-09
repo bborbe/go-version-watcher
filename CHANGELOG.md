@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## Unreleased
 
+## v0.3.0
+
+- Add `SEED_VERSION` env (cold-start seeds a lower version so the first poll
+  emits a task for the current latest) and cursor admin endpoints
+  `/resetcursor`, `/setcursor/{version}`, `/trigger` (force an immediate poll)
+  for operational reset / live end-to-end testing.
+
 ## v0.2.0
 
 - Emitted-task assignee/status/phase and an optional title suffix are now

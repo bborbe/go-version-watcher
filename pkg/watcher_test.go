@@ -56,7 +56,14 @@ var _ = Describe("pkg.Watcher.Poll", func() {
 		client = &mocks.GoDevClient{}
 		publisher = &mocks.TaskPublisher{}
 		metrics = &mocks.Metrics{}
-		w = pkg.NewWatcher(client, publisher, metrics, cursorPath, pkg.TaskConfig{Stage: "prod"})
+		w = pkg.NewWatcher(
+			client,
+			publisher,
+			metrics,
+			cursorPath,
+			pkg.TaskConfig{Stage: "prod"},
+			"",
+		)
 	})
 
 	AfterEach(func() {
@@ -77,6 +84,32 @@ var _ = Describe("pkg.Watcher.Poll", func() {
 			loaded, err := pkg.LoadCursor(ctx, cursorPath)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(loaded.LastSeenVersion).To(Equal("go1.26.5"))
+		})
+	})
+
+	Context("cold start with configured seed version", func() {
+		BeforeEach(func() {
+			// No cursor on disk; seed to a lower version so the first poll emits.
+			w = pkg.NewWatcher(
+				client, publisher, metrics, cursorPath, pkg.TaskConfig{Stage: "prod"}, "go1.26.4",
+			)
+			client.LatestStableReturns(mustVersion("go1.26.5"), nil)
+			publisher.PublishCreateReturns(true)
+		})
+
+		It("emits one task for latest, classifies patch, advances the cursor", func() {
+			Expect(w.Poll(ctx)).To(Succeed())
+
+			Expect(publisher.PublishCreateCallCount()).To(Equal(1))
+			_, cmd := publisher.PublishCreateArgsForCall(0)
+			Expect(cmd.Frontmatter["new_version"]).To(Equal("go1.26.5"))
+			Expect(cmd.Frontmatter["previous_version"]).To(Equal("go1.26.4"))
+			Expect(cmd.Frontmatter["release_kind"]).To(Equal("patch"))
+
+			loaded, err := pkg.LoadCursor(ctx, cursorPath)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(loaded.LastSeenVersion).To(Equal("go1.26.5"))
+			Expect(metrics.IncPollCycleArgsForCall(0)).To(Equal("success"))
 		})
 	})
 

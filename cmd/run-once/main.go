@@ -49,7 +49,8 @@ type Application struct {
 	SentryProxy string `required:"false" arg:"sentry-proxy" env:"SENTRY_PROXY" usage:"Sentry Proxy"`
 
 	Stage        string           `required:"true"  arg:"stage"         env:"STAGE"         usage:"Deployment stage (dev|prod)"`
-	CursorPath   string           `required:"false" arg:"cursor-path"   env:"CURSOR_PATH"   usage:"Cursor persistence path"                        default:"/data/cursor.json"`
+	CursorPath   string           `required:"false" arg:"cursor-path"   env:"CURSOR_PATH"   usage:"Cursor persistence path"                                                                                                                                                                           default:"/data/cursor.json"`
+	SeedVersion  string           `required:"false" arg:"seed-version"  env:"SEED_VERSION"  usage:"Optional go version (e.g. go1.26.4) to seed the cursor with on cold-start instead of the current latest; makes the poll emit a task for the current latest. Empty = seed to latest, emit nothing."`
 	KafkaBrokers libkafka.Brokers `required:"true"  arg:"kafka-brokers" env:"KAFKA_BROKERS" usage:"Comma-separated Kafka broker list"`
 	// TopicPrefix selects the Kafka topic prefix used for CQRS topic construction
 	// (e.g. "develop" / "master"); independent of Stage. Empty means unprefixed topics.
@@ -66,6 +67,7 @@ type WatcherFactory func(
 	cursorPath string,
 	metrics pkg.Metrics,
 	cfg pkg.TaskConfig,
+	seedVersion string,
 ) pkg.Watcher
 
 // ProducerFactory creates a Kafka sync producer. Matches
@@ -96,7 +98,7 @@ func (a *Application) Run(ctx context.Context, _ libsentry.Client) error {
 		Assignee: "human",
 		Status:   "in_progress",
 		Phase:    "todo",
-	})
+	}, a.SeedVersion)
 
 	if err := w.Poll(ctx); err != nil {
 		return errors.Wrap(ctx, err, "poll failed")
