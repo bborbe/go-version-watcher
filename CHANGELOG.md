@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+- update Go to 1.26.6 and update dependencies, fixing GO-2026-5841, GO-2026-5970, GO-2026-6179, GO-2026-6180
+
 ## v0.5.2
 
 - Move the built-in default title/body templates into a dedicated `pkg/tasktemplate` package that `//go:embed`s `default-title.md` + `default-body.md` (mirrors `agent-claude/pkg/prompts`). Defaults are now authored as markdown files instead of inline Go string literals; no behavior change.
