@@ -5,6 +5,9 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+- chore: Bump errcheck to v1.20.0 and golangci-lint to v2.13.1 for Go 1.27 support
 ## v0.6.0
 
 - feat: gate task emission on docker.io having published the golang image for the new Go version — go.dev lists a release up to a day before the image exists, so the watcher now checks the Docker Hub manifest before emitting and holds the cursor (`image_not_ready`) until the image is available.
