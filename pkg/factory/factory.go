@@ -42,9 +42,15 @@ func CreateWatcher(
 	seedVersion string,
 ) pkg.Watcher {
 	client := pkg.NewGoDevClient(httpClient, pkg.DefaultGoDevURL)
+	imageChecker := pkg.NewImageChecker(
+		httpClient,
+		pkg.DefaultDockerHubTokenURL,
+		pkg.DefaultDockerHubRegistryURL,
+	)
 	publisher := pkg.NewTaskPublisher(sender, metrics)
 	return pkg.NewWatcher(
 		client,
+		imageChecker,
 		publisher,
 		metrics,
 		cursorPath,

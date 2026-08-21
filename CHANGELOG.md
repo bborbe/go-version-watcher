@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+- feat: gate task emission on docker.io having published the golang image for the new Go version — go.dev lists a release up to a day before the image exists, so the watcher now checks the Docker Hub manifest before emitting and holds the cursor (`image_not_ready`) until the image is available.
+
 ## v0.5.3
 
 - update Go to 1.26.6 and update dependencies, fixing GO-2026-5841, GO-2026-5970, GO-2026-6179, GO-2026-6180

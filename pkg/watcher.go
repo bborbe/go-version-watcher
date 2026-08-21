@@ -25,8 +25,12 @@ type Watcher interface {
 // seedVersion, when non-empty, is the Go version the cursor is seeded with on
 // cold start instead of the current latest, so the first poll can emit a task
 // for the current latest. Empty means seed to latest and emit nothing.
+//
+// imageChecker gates task emission on docker.io actually publishing the golang
+// image for the new version (go.dev releases 12h–1day before the image exists).
 func NewWatcher(
 	client GoDevClient,
+	imageChecker ImageChecker,
 	publisher TaskPublisher,
 	metrics Metrics,
 	cursorPath string,
@@ -34,22 +38,24 @@ func NewWatcher(
 	seedVersion string,
 ) Watcher {
 	return &watcher{
-		client:      client,
-		publisher:   publisher,
-		metrics:     metrics,
-		cursorPath:  cursorPath,
-		cfg:         cfg,
-		seedVersion: seedVersion,
+		client:       client,
+		imageChecker: imageChecker,
+		publisher:    publisher,
+		metrics:      metrics,
+		cursorPath:   cursorPath,
+		cfg:          cfg,
+		seedVersion:  seedVersion,
 	}
 }
 
 type watcher struct {
-	client      GoDevClient
-	publisher   TaskPublisher
-	metrics     Metrics
-	cursorPath  string
-	cfg         TaskConfig
-	seedVersion string
+	client       GoDevClient
+	imageChecker ImageChecker
+	publisher    TaskPublisher
+	metrics      Metrics
+	cursorPath   string
+	cfg          TaskConfig
+	seedVersion  string
 }
 
 // Poll implements Watcher. One cycle:
@@ -59,9 +65,11 @@ type watcher struct {
 //  3. Cold start (empty cursor): with no seedVersion, seed cursor to latest and
 //     emit nothing; with a seedVersion, seed cursor to that lower version and
 //     fall through to the comparison so the first poll emits a task for latest.
-//  4. latest > cursor: build + publish one task; advance cursor on publish success.
-//  5. latest <= cursor: record version_unchanged (no task).
-//  6. Record success.
+//  4. latest > cursor: check the docker image for latest exists — if not yet
+//     published, hold the cursor, record image_not_ready, retry next cycle.
+//  5. Image exists: build + publish one task; advance cursor on publish success.
+//  6. latest <= cursor: record version_unchanged (no task).
+//  7. Record success.
 func (w *watcher) Poll(ctx context.Context) error {
 	cursor, err := LoadCursor(ctx, w.cursorPath)
 	if err != nil {
@@ -94,10 +102,8 @@ func (w *watcher) Poll(ctx context.Context) error {
 	}
 
 	if previous.Less(latest) {
-		if err := w.emit(ctx, cursor, previous, latest); err != nil {
-			w.metrics.IncPollCycle("build_error")
-			glog.Errorf("emit task failed latest=%s: %v", latest, err)
-			return nil
+		if err := w.emitWhenImageReady(ctx, cursor, previous, latest); err != nil {
+			return err
 		}
 	} else {
 		w.metrics.IncFilterSkipped("version_unchanged")
@@ -105,6 +111,35 @@ func (w *watcher) Poll(ctx context.Context) error {
 	}
 
 	w.metrics.IncPollCycle("success")
+	return nil
+}
+
+// emitWhenImageReady gates task emission on docker.io having published the
+// image for latest. When the image is not yet available (go.dev releases 12h–
+// 1day before the image exists) the cursor is held and the next cycle retries.
+func (w *watcher) emitWhenImageReady(
+	ctx context.Context,
+	cursor *Cursor,
+	previous, latest Version,
+) error {
+	exists, err := w.imageChecker.ImageExists(ctx, latest)
+	if err != nil {
+		w.metrics.IncPollCycle("image_check_error")
+		glog.Warningf("image check failed latest=%s err=%v", latest, err)
+		return nil
+	}
+	if !exists {
+		w.metrics.IncFilterSkipped("image_not_ready")
+		glog.V(2).
+			Infof("image not ready latest=%s cursor=%s — holding, retry next cycle", latest, previous)
+		w.metrics.IncPollCycle("success")
+		return nil
+	}
+	if err := w.emit(ctx, cursor, previous, latest); err != nil {
+		w.metrics.IncPollCycle("build_error")
+		glog.Errorf("emit task failed latest=%s: %v", latest, err)
+		return nil
+	}
 	return nil
 }
 
