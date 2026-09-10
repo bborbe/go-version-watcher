@@ -16,6 +16,7 @@ import (
 	"github.com/bborbe/cqrs/base"
 	"github.com/bborbe/errors"
 	libkafka "github.com/bborbe/kafka"
+	"github.com/bborbe/notification/command/notification"
 	libsentry "github.com/bborbe/sentry"
 	"github.com/bborbe/service"
 	"github.com/golang/glog"
@@ -65,6 +66,7 @@ type Application struct {
 type WatcherFactory func(
 	httpClient *http.Client,
 	sender task.CreateCommandSender,
+	notificationSender notification.NotificationPublishCommandSender,
 	cursorPath string,
 	metrics pkg.Metrics,
 	cfg pkg.TaskConfig,
@@ -94,12 +96,21 @@ func (a *Application) Run(ctx context.Context, _ libsentry.Client) error {
 	httpClient := &http.Client{Timeout: httpClientTimeout}
 	metrics := pkg.NewMetrics(prometheus.NewRegistry())
 	sender := factory.CreateKafkaSender(syncProducer, a.TopicPrefix, a.TargetVault)
-	w := a.CreateWatcher(httpClient, sender, a.CursorPath, metrics, pkg.TaskConfig{
-		Stage:    a.Stage,
-		Assignee: "human",
-		Status:   "in_progress",
-		Phase:    "todo",
-	}, a.SeedVersion)
+	notificationSender := factory.CreateKafkaNotificationSender(syncProducer, a.TopicPrefix)
+	w := a.CreateWatcher(
+		httpClient,
+		sender,
+		notificationSender,
+		a.CursorPath,
+		metrics,
+		pkg.TaskConfig{
+			Stage:    a.Stage,
+			Assignee: "human",
+			Status:   "in_progress",
+			Phase:    "todo",
+		},
+		a.SeedVersion,
+	)
 
 	if err := w.Poll(ctx); err != nil {
 		return errors.Wrap(ctx, err, "poll failed")

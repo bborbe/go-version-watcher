@@ -10,6 +10,7 @@ require (
 	github.com/bborbe/http v1.26.26
 	github.com/bborbe/kafka v1.25.15
 	github.com/bborbe/log v1.6.25
+	github.com/bborbe/notification v0.2.0
 	github.com/bborbe/run v1.10.2
 	github.com/bborbe/sentry v1.10.1
 	github.com/bborbe/service v1.10.13

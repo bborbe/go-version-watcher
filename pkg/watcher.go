@@ -32,30 +32,33 @@ func NewWatcher(
 	client GoDevClient,
 	imageChecker ImageChecker,
 	publisher TaskPublisher,
+	notificationPublisher NotificationPublisher,
 	metrics Metrics,
 	cursorPath string,
 	cfg TaskConfig,
 	seedVersion string,
 ) Watcher {
 	return &watcher{
-		client:       client,
-		imageChecker: imageChecker,
-		publisher:    publisher,
-		metrics:      metrics,
-		cursorPath:   cursorPath,
-		cfg:          cfg,
-		seedVersion:  seedVersion,
+		client:                client,
+		imageChecker:          imageChecker,
+		publisher:             publisher,
+		notificationPublisher: notificationPublisher,
+		metrics:               metrics,
+		cursorPath:            cursorPath,
+		cfg:                   cfg,
+		seedVersion:           seedVersion,
 	}
 }
 
 type watcher struct {
-	client       GoDevClient
-	imageChecker ImageChecker
-	publisher    TaskPublisher
-	metrics      Metrics
-	cursorPath   string
-	cfg          TaskConfig
-	seedVersion  string
+	client                GoDevClient
+	imageChecker          ImageChecker
+	publisher             TaskPublisher
+	notificationPublisher NotificationPublisher
+	metrics               Metrics
+	cursorPath            string
+	cfg                   TaskConfig
+	seedVersion           string
 }
 
 // Poll implements Watcher. One cycle:
@@ -184,6 +187,16 @@ func (w *watcher) emit(ctx context.Context, cursor *Cursor, previous, latest Ver
 	}
 	if !w.publisher.PublishCreate(ctx, cmd) {
 		return nil
+	}
+	// Publish the go-release notification alongside the task (same event, both
+	// channels). Best-effort: the task backstop has already advanced the cursor
+	// and the notification is not part of the cursor/dedup contract — a transient
+	// failure surfaces via the notification_error metric, and the next release
+	// re-arms delivery.
+	if ncmd, nerr := BuildNotificationCommand(ctx, latest.String(), previous.String(), releaseKind); nerr != nil {
+		glog.Warningf("build notification failed latest=%s err=%v", latest, nerr)
+	} else if !w.notificationPublisher.PublishNotification(ctx, ncmd) {
+		glog.Warningf("publish notification failed latest=%s", latest)
 	}
 	cursor.LastSeenVersion = latest.String()
 	if err := SaveCursor(ctx, w.cursorPath, cursor); err != nil {

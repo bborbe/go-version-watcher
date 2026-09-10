@@ -19,14 +19,15 @@ import (
 
 var _ = Describe("pkg.Watcher.Poll", func() {
 	var (
-		ctx          context.Context
-		client       *mocks.GoDevClient
-		imageChecker *mocks.ImageChecker
-		publisher    *mocks.TaskPublisher
-		metrics      *mocks.Metrics
-		cursorPath   string
-		tmpDir       string
-		w            pkg.Watcher
+		ctx                   context.Context
+		client                *mocks.GoDevClient
+		imageChecker          *mocks.ImageChecker
+		publisher             *mocks.TaskPublisher
+		notificationPublisher *mocks.NotificationPublisher
+		metrics               *mocks.Metrics
+		cursorPath            string
+		tmpDir                string
+		w                     pkg.Watcher
 	)
 
 	mustVersion := func(s string) pkg.Version {
@@ -57,11 +58,14 @@ var _ = Describe("pkg.Watcher.Poll", func() {
 		client = &mocks.GoDevClient{}
 		imageChecker = &mocks.ImageChecker{}
 		publisher = &mocks.TaskPublisher{}
+		notificationPublisher = &mocks.NotificationPublisher{}
+		notificationPublisher.PublishNotificationReturns(true)
 		metrics = &mocks.Metrics{}
 		w = pkg.NewWatcher(
 			client,
 			imageChecker,
 			publisher,
+			notificationPublisher,
 			metrics,
 			cursorPath,
 			pkg.TaskConfig{Stage: "prod"},
@@ -97,6 +101,7 @@ var _ = Describe("pkg.Watcher.Poll", func() {
 				client,
 				imageChecker,
 				publisher,
+				notificationPublisher,
 				metrics,
 				cursorPath,
 				pkg.TaskConfig{Stage: "prod"},
@@ -140,6 +145,35 @@ var _ = Describe("pkg.Watcher.Poll", func() {
 			Expect(cmd.Frontmatter["previous_version"]).To(Equal("go1.26.4"))
 			Expect(cmd.Frontmatter["release_kind"]).To(Equal("patch"))
 
+			loaded, err := pkg.LoadCursor(ctx, cursorPath)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(loaded.LastSeenVersion).To(Equal("go1.26.5"))
+			Expect(metrics.IncPollCycleArgsForCall(0)).To(Equal("success"))
+		})
+
+		It("publishes one go-release notification for the same event", func() {
+			Expect(w.Poll(ctx)).To(Succeed())
+
+			Expect(notificationPublisher.PublishNotificationCallCount()).To(Equal(1))
+			_, ncmd := notificationPublisher.PublishNotificationArgsForCall(0)
+			Expect(ncmd.Type.String()).To(Equal("go-release"))
+			Expect(ncmd.Metadata["version"]).To(Equal("go1.26.5"))
+			Expect(ncmd.Metadata["release_kind"]).To(Equal("patch"))
+		})
+	})
+
+	Context("new version, notification publish fails", func() {
+		BeforeEach(func() {
+			writeCursor("go1.26.4")
+			client.LatestStableReturns(mustVersion("go1.26.5"), nil)
+			imageChecker.ImageExistsReturns(true, nil)
+			publisher.PublishCreateReturns(true)
+			notificationPublisher.PublishNotificationReturns(false)
+		})
+
+		It("advances the cursor anyway (task backstop already landed)", func() {
+			Expect(w.Poll(ctx)).To(Succeed())
+			Expect(notificationPublisher.PublishNotificationCallCount()).To(Equal(1))
 			loaded, err := pkg.LoadCursor(ctx, cursorPath)
 			Expect(err).NotTo(HaveOccurred())
 			Expect(loaded.LastSeenVersion).To(Equal("go1.26.5"))

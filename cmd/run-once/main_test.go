@@ -15,6 +15,7 @@ import (
 	saramamocks "github.com/IBM/sarama/mocks"
 	task "github.com/bborbe/agent/command/task"
 	libkafka "github.com/bborbe/kafka"
+	"github.com/bborbe/notification/command/notification"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/format"
@@ -59,6 +60,7 @@ var _ = Describe("Run", func() {
 		return func(
 			_ *http.Client,
 			_ task.CreateCommandSender,
+			_ notification.NotificationPublishCommandSender,
 			_ string,
 			_ pkg.Metrics,
 			_ pkg.TaskConfig,
