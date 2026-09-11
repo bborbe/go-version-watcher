@@ -1,6 +1,6 @@
 # go-version-watcher
 
-Polls [`https://go.dev/dl/?mode=json`](https://go.dev/dl/?mode=json) on an interval, computes the maximum `stable:true` Go version, and publishes one deduplicated `CreateTaskCommand` to Kafka per new version so a downstream task system can act on it.
+Polls [`https://go.dev/dl/?mode=json`](https://go.dev/dl/?mode=json) on an interval, computes the maximum `stable:true` Go version, and publishes one deduplicated `CreateTaskCommand` to Kafka per new version so a downstream task system can act on it. Alongside the task it publishes one `NotificationPublishCommand` (type `go-release`) to the generic notification core, so a new stable Go release lands in Discord without the vault-task backstop.
 
 The emitted task title and body are plain, deployment-agnostic defaults out of the box; set `TASK_TITLE_TEMPLATE` / `TASK_BODY_TEMPLATE` (Go `text/template`) to inject deployment-specific content — e.g. a link to your own update runbook.
 
@@ -13,7 +13,7 @@ On each poll cycle:
 1. **Load cursor** (`/data/cursor.json`) — a single `last_seen_version` string.
 2. **Query go.dev** — parse the JSON release list, keep `stable:true` entries, and compute the **max** version by parsed `(major, minor, patch)` integers (`go1.26.10 > go1.26.9`). On query/parse failure the cursor is held and the cycle records `go_dev_error`.
 3. **Cold start** (empty cursor): seed the cursor to the current max and emit nothing — avoids a spurious "update" task on first run.
-4. **New version** (`max > cursor`): classify `release_kind` (`minor` if the major/minor differs, else `patch`), publish one `CreateTaskCommand`, and advance the cursor on publish success.
+4. **New version** (`max > cursor`): classify `release_kind` (`minor` if the major/minor differs, else `patch`), publish one `CreateTaskCommand` plus one `NotificationPublishCommand` (type `go-release`), and advance the cursor on task-publish success. The notification publish is best-effort — a transient failure is recorded via the `notification_error` metric and the task remains the deduplicated backstop.
 5. **Unchanged** (`max <= cursor`): record `version_unchanged`, emit nothing.
 
 Deterministic `UUID5("go-version:" + version)` gives controller dedup — re-polling an already-seen version is a no-op.
@@ -37,6 +37,23 @@ release_notes_url: https://go.dev/doc/devel/release#go1.27.0
 ```
 
 Body is an operator-readable header only (title + release-notes URL + downloads URL). The built-in default is deployment-agnostic; override it per deployment with `TASK_BODY_TEMPLATE` to add e.g. a runbook link.
+
+## Notification Contract
+
+Every emitted `NotificationPublishCommand` carries this shape:
+
+```yaml
+type: go-release
+message: Go <X.Y.Z> released (<minor|patch>) - https://go.dev/doc/devel/release#go<X.Y.Z>
+metadata:
+  source: go-version-watcher
+  version: go1.27.0
+  previous_version: go1.26.5
+  release_kind: minor
+  release_notes_url: https://go.dev/doc/devel/release#go1.27.0
+```
+
+It is sent to the `{branch}-core-notification-v1-request` topic (CDB, `NotificationV1SchemaID`); the notification core's controller routes `go-release` to Discord. The message never carries a target — per the notification-targets principle, the message does not know where it ends.
 
 ## Environment Variables
 
@@ -64,7 +81,7 @@ Body is an operator-readable header only (title + release-notes URL + downloads 
 | Metric | Cardinality | Purpose |
 |---|---|---|
 | `go_version_watcher_poll_cycle_total{result}` | `result=success\|go_dev_error` | Poll health |
-| `go_version_watcher_published_total{status}` | `status=create\|error` | Task emission |
+| `go_version_watcher_published_total{status}` | `status=create\|notification\|notification_error\|error` | Task + notification emission |
 | `go_version_watcher_filter_skipped_total{reason}` | `reason=version_unchanged` | Filter visibility |
 
 ## Development
