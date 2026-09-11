@@ -96,7 +96,7 @@ func (a *Application) Run(ctx context.Context, _ libsentry.Client) error {
 	httpClient := &http.Client{Timeout: httpClientTimeout}
 	metrics := pkg.NewMetrics(prometheus.NewRegistry())
 	sender := factory.CreateKafkaSender(syncProducer, a.TopicPrefix, a.TargetVault)
-	notificationSender := factory.CreateKafkaNotificationSender(syncProducer, a.TopicPrefix)
+	notificationSender := factory.CreateKafkaNotificationSender(ctx, syncProducer, a.TopicPrefix)
 	w := a.CreateWatcher(
 		httpClient,
 		sender,

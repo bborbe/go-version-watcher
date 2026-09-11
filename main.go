@@ -99,7 +99,7 @@ func (a *application) Run(ctx context.Context, _ libsentry.Client) error {
 	httpClient := &http.Client{Timeout: httpClientTimeout}
 	metrics := pkg.NewMetrics(nil)
 	sender := factory.CreateKafkaSender(syncProducer, a.TopicPrefix, a.TargetVault)
-	notificationSender := factory.CreateKafkaNotificationSender(syncProducer, a.TopicPrefix)
+	notificationSender := factory.CreateKafkaNotificationSender(ctx, syncProducer, a.TopicPrefix)
 	w := factory.CreateWatcher(
 		httpClient,
 		sender,

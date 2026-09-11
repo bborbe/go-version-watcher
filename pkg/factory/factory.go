@@ -35,14 +35,16 @@ func CreateKafkaSender(
 // CreateKafkaNotificationSender constructs a typed notification-publish command
 // sender backed by the same Kafka sync producer used for task commands. The
 // CDB sender derives the topic ({branch}-core-notification-v1-request) from
-// core.NotificationV1SchemaID + topicPrefix.
+// core.NotificationV1SchemaID + topicPrefix. ctx feeds the request-ID channel
+// so downstream cancellation propagates.
 func CreateKafkaNotificationSender(
+	ctx context.Context,
 	syncProducer libkafka.SyncProducer,
 	topicPrefix base.TopicPrefix,
 ) notification.NotificationPublishCommandSender {
 	sender := cdb.NewCommandObjectSender(syncProducer, topicPrefix, log.DefaultSamplerFactory)
 	return notification.NewNotificationPublishCommandSender(
-		base.NewCommandCreator(base.RequestIDChannel(context.Background())),
+		base.NewCommandCreator(base.RequestIDChannel(ctx)),
 		sender,
 		cqrsiam.Initiator("go-version-watcher"),
 	)
