@@ -99,15 +99,24 @@ func (a *application) Run(ctx context.Context, _ libsentry.Client) error {
 	httpClient := &http.Client{Timeout: httpClientTimeout}
 	metrics := pkg.NewMetrics(nil)
 	sender := factory.CreateKafkaSender(syncProducer, a.TopicPrefix, a.TargetVault)
-	w := factory.CreateWatcher(httpClient, sender, a.CursorPath, metrics, pkg.TaskConfig{
-		Stage:         a.Stage,
-		Assignee:      a.TaskAssignee,
-		Status:        a.TaskStatus,
-		Phase:         a.TaskPhase,
-		Suffix:        a.TaskSuffix,
-		TitleTemplate: titleTemplate,
-		BodyTemplate:  bodyTemplate,
-	}, a.SeedVersion)
+	notificationSender := factory.CreateKafkaNotificationSender(ctx, syncProducer, a.TopicPrefix)
+	w := factory.CreateWatcher(
+		httpClient,
+		sender,
+		notificationSender,
+		a.CursorPath,
+		metrics,
+		pkg.TaskConfig{
+			Stage:         a.Stage,
+			Assignee:      a.TaskAssignee,
+			Status:        a.TaskStatus,
+			Phase:         a.TaskPhase,
+			Suffix:        a.TaskSuffix,
+			TitleTemplate: titleTemplate,
+			BodyTemplate:  bodyTemplate,
+		},
+		a.SeedVersion,
+	)
 
 	glog.V(2).Infof(
 		"go-version-watcher starting stage=%s interval=%s listen=%s",

@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+- feat: publish a `NotificationPublishCommand` (type `go-release`) alongside the go-version update task, so new stable Go releases land in Discord via the generic notification core
+
 ## v0.7.2
 
 - chore: update Go to 1.27.1 and github.com/bborbe/agent to v0.87.4, github.com/bborbe/errors to v1.6.1, github.com/bborbe/http to v1.26.26, github.com/bborbe/kafka to v1.25.15, github.com/bborbe/service to v1.10.13

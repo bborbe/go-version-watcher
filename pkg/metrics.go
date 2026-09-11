@@ -14,7 +14,7 @@ type Metrics interface {
 	// IncPollCycle — result: "success" | "go_dev_error" | "image_check_error" | "build_error"
 	IncPollCycle(result string)
 
-	// IncPublished — status: "create" | "error"
+	// IncPublished — status: "create" | "notification" | "notification_error" | "error"
 	IncPublished(status string)
 
 	// IncFilterSkipped — reason: "version_unchanged" | "image_not_ready"
@@ -56,7 +56,7 @@ func NewMetrics(registerer prometheus.Registerer) Metrics {
 	for _, r := range []string{"success", "go_dev_error", "image_check_error", "build_error"} {
 		m.pollCycleTotal.WithLabelValues(r).Add(0)
 	}
-	for _, s := range []string{"create", "error"} {
+	for _, s := range []string{"create", "notification", "notification_error", "error"} {
 		m.publishedTotal.WithLabelValues(s).Add(0)
 	}
 	for _, r := range []string{"version_unchanged", "image_not_ready"} {
