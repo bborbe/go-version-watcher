@@ -92,6 +92,36 @@ make generate      # regenerate counterfeiter mocks
 make precommit     # format + lint + test + security checks
 ```
 
+## Build
+
+The image is built either on the local Docker daemon or inside a Kubernetes
+cluster, selected by `BUILD_TARGET`.
+
+Local (the default) builds and tags on this machine:
+
+```bash
+make build VERSION=<tag>
+```
+
+Cluster builds render and run a Job in the named cluster alias (`sun`,
+`nukedev`, `nukeprod`) or kubectl context. The Job clones `REF`, builds the
+image and pushes it:
+
+```bash
+make build BUILD_TARGET=<cluster> REF=<full-sha> VERSION=<tag>
+```
+
+The cluster push credential is Docker Hub only, so that arm pushes
+`docker.io/bborbe/go-version-watcher:<tag>`. nuke's `MIRROR_IMAGES` step is what
+copies that image into the private registry; the build does not push there
+directly.
+
+`upload`, `clean` and `buca` remain local-only — they assume a Docker daemon on
+the invoking host, so they are refused for a cluster `BUILD_TARGET`.
+
+⚠️ On the cluster arm `VERSION` must be a scratch tag. A tag that already names
+a released image is overwritten irreversibly by the push.
+
 ## Smoke Test (`cmd/run-once`)
 
 Single Poll cycle against real dev Kafka, then exits.
