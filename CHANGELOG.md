@@ -8,6 +8,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 - feat: Add the cluster build runner files (`hack/build-cluster.sh`, `hack/cluster-alias.sh`, `hack/build-job.yaml`, `hack/build-cluster-bootstrap.sh`, `hack/dockerconfig.json.tpl`) and switch the Dockerfile to module mode so a fresh clone with no `vendor/` builds the image
+- feat: Dispatch `make build` on `BUILD_TARGET` (default `local`) so a cluster target renders and runs the Kubernetes build Job; the cluster arm requires a caller-supplied `VERSION`, refuses the local-only `upload`/`clean`/`buca` goals, and both arms compose the same image reference
+- fix: Fall back to the working directory when `git rev-parse --show-toplevel` fails so `ROOTDIR` resolves where `.git` is masked
 
 ## v0.8.8
 
