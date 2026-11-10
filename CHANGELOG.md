@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+- chore: update github.com/bborbe/agent to v0.139.7, github.com/bborbe/http to v1.26.33, github.com/bborbe/kafka to v1.29.13, github.com/bborbe/log to v1.7.8, github.com/bborbe/notification to v0.7.11
+
 ## v0.9.0
 
 - feat: Add the cluster build runner files (`hack/build-cluster.sh`, `hack/cluster-alias.sh`, `hack/build-job.yaml`, `hack/build-cluster-bootstrap.sh`, `hack/dockerconfig.json.tpl`) and switch the Dockerfile to module mode so a fresh clone with no `vendor/` builds the image
