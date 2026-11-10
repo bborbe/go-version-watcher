@@ -1,6 +1,8 @@
 ---
-status: approved
+status: prompted
 approved: "2026-11-09T06:26:24Z"
+generating: "2026-11-10T08:01:16Z"
+prompted: "2026-11-10T08:01:16Z"
 branch: dark-factory/cluster-build-arm
 ---
 
