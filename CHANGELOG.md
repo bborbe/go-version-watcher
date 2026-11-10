@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Unreleased
 
 - feat: Add the cluster build runner files (`hack/build-cluster.sh`, `hack/cluster-alias.sh`, `hack/build-job.yaml`, `hack/build-cluster-bootstrap.sh`, `hack/dockerconfig.json.tpl`) and switch the Dockerfile to module mode so a fresh clone with no `vendor/` builds the image
+- feat: Add a `BUILD_TARGET` dispatch to `Makefile.docker` — `make build` stays local while `make build BUILD_TARGET=<cluster> REF=<sha> VERSION=<tag>` builds inside the cluster — and document both arms, the Docker Hub push constraint and the nuke `MIRROR_IMAGES` coupling in the README
 
 ## v0.8.8
 

@@ -1,8 +1,13 @@
 ---
-status: approved
+status: completed
 spec: [001-cluster-build-arm]
+summary: Added the BUILD_TARGET local/cluster dispatch to Makefile.docker, ROOTDIR fallbacks in both Makefiles, and documented both build arms in README.md and CHANGELOG.md
+execution_id: 032babf5-9a9a-5aa6-afdb-465913b3b726-exec-002-makefile-dispatch-and-readme
+dark-factory-version: dev
 created: "2026-11-10T08:01:07Z"
 queued: "2026-11-10T08:01:07Z"
+started: "2026-11-10T09:03:27Z"
+completed: "2026-11-10T09:12:02Z"
 ---
 
 <summary>
