@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## v0.10.0
 
 - feat: add a `RUN_ONCE` env flag that runs one poll cycle and exits, so a Kubernetes Job can reuse this image. `AgentConfiguration` carries no `command`/`args`, so an env-driven mode is the only way to select the one-shot path without forking the image.
 
