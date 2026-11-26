@@ -61,7 +61,6 @@ var _ = Describe("pkg.Watcher.Poll", func() {
 			client,
 			imageChecker,
 			publisher,
-			notificationPublisher,
 			metrics,
 			cursorPath,
 			pkg.TaskConfig{Stage: "prod"},
@@ -170,17 +169,18 @@ var _ = Describe("pkg.Watcher.Poll", func() {
 		})
 	})
 
-	Context("publish returns false", func() {
+	Context("publish fails", func() {
 		BeforeEach(func() {
 			client.LatestTwoStableReturns(mustVersion("go1.26.5"), mustVersion("go1.26.4"), nil)
 			imageChecker.ImageExistsReturns(true, nil)
 			publisher.PublishCreateReturns(false)
 		})
 
-		It("records success and publishes no notification", func() {
-			Expect(w.Poll(ctx)).To(Succeed())
-			Expect(notificationPublisher.PublishNotificationCallCount()).To(Equal(0))
-			Expect(metrics.IncPollCycleArgsForCall(0)).To(Equal("success"))
+		// The run-once path gates completeCheckTask on Poll's error. A nil return
+		// here would close the check task as done while no update task exists.
+		It("fails the cycle so run-once cannot complete the check task", func() {
+			Expect(w.Poll(ctx)).To(HaveOccurred())
+			Expect(metrics.IncPollCycleArgsForCall(0)).To(Equal("publish_error"))
 		})
 	})
 

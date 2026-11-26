@@ -32,33 +32,30 @@ func NewWatcher(
 	client GoDevClient,
 	imageChecker ImageChecker,
 	publisher TaskPublisher,
-	notificationPublisher NotificationPublisher,
 	metrics Metrics,
 	cursorPath string,
 	cfg TaskConfig,
 	seedVersion string,
 ) Watcher {
 	return &watcher{
-		client:                client,
-		imageChecker:          imageChecker,
-		publisher:             publisher,
-		notificationPublisher: notificationPublisher,
-		metrics:               metrics,
-		cursorPath:            cursorPath,
-		cfg:                   cfg,
-		seedVersion:           seedVersion,
+		client:       client,
+		imageChecker: imageChecker,
+		publisher:    publisher,
+		metrics:      metrics,
+		cursorPath:   cursorPath,
+		cfg:          cfg,
+		seedVersion:  seedVersion,
 	}
 }
 
 type watcher struct {
-	client                GoDevClient
-	imageChecker          ImageChecker
-	publisher             TaskPublisher
-	notificationPublisher NotificationPublisher
-	metrics               Metrics
-	cursorPath            string
-	cfg                   TaskConfig
-	seedVersion           string
+	client       GoDevClient
+	imageChecker ImageChecker
+	publisher    TaskPublisher
+	metrics      Metrics
+	cursorPath   string
+	cfg          TaskConfig
+	seedVersion  string
 }
 
 // Poll implements Watcher. One stateless cycle:
@@ -119,7 +116,9 @@ func (w *watcher) emitWhenImageReady(
 		return nil
 	}
 	if err := w.emit(ctx, previous, latest); err != nil {
-		w.metrics.IncPollCycle("build_error")
+		// emit records its own cycle metric (build_error / publish_error) so the
+		// two failure modes stay distinguishable; wrapping here would collapse
+		// them into one label.
 		return errors.Wrapf(ctx, err, "emit task for %s", latest)
 	}
 	return nil
@@ -138,10 +137,16 @@ func (w *watcher) emit(ctx context.Context, previous, latest Version) error {
 	}
 	cmd, err := BuildCreateCommand(ctx, latest.String(), previous.String(), releaseKind, w.cfg)
 	if err != nil {
+		w.metrics.IncPollCycle("build_error")
 		return errors.Wrapf(ctx, err, "build create command for %s", latest)
 	}
 	if !w.publisher.PublishCreate(ctx, cmd) {
-		return nil
+		// A failed publish must FAIL the cycle, not return nil. The run-once path
+		// gates completeCheckTask on Poll's error: returning nil here would close
+		// the check task as done while no update task exists, losing the release
+		// signal silently and leaving nothing for a human to see.
+		w.metrics.IncPollCycle("publish_error")
+		return errors.Errorf(ctx, "publish create command for %s failed", latest)
 	}
 	// The go-release notification is deliberately NOT published from here. It has
 	// no dedup of its own: the notification command carries no idempotency key and

@@ -87,12 +87,10 @@ func CreateWatcher(
 		pkg.DefaultDockerHubRegistryURL,
 	)
 	publisher := pkg.NewTaskPublisher(sender, metrics)
-	notificationPublisher := pkg.NewNotificationPublisher(notificationSender, metrics)
 	return pkg.NewWatcher(
 		client,
 		imageChecker,
 		publisher,
-		notificationPublisher,
 		metrics,
 		cursorPath,
 		cfg,
