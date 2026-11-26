@@ -5,6 +5,10 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+- feat: **the poll is stateless — no cursor — and dedup moves to the task controller.** A Kubernetes Job has no PVC, so the old cursor contract made every run a cold start that seeded to the latest version and emitted nothing: the mechanism the daily check depends on could never fire. `Poll` now reads the max stable version and the **second-max** (`GoDevClient.SecondLatestStable`, new) and emits for the latest on every run, taking `previous_version` and `release_kind` from the upstream list instead of a stored cursor. Idempotency is the emitted task's `recurring:` marker: `agent-task-controller` holds a terminal recurring instance in its slot (`isRecurringTaskCommand` → `ReopenTerminal: false`) rather than re-materializing it, so a completed update task is never re-filed. The emitted frontmatter gains `recurring: go-version:<version>`. `LoadCursor`/`SaveCursor` and the cursor-admin HTTP endpoints remain for now; the poll no longer uses them, and the `cursorPath`/`seedVersion` watcher fields are retained so the constructor signature and the still-running StatefulSet are unchanged.
+
 ## v0.10.0
 
 - feat: add a `RUN_ONCE` env flag that runs one poll cycle and exits, so a Kubernetes Job can reuse this image. `AgentConfiguration` carries no `command`/`args`, so an env-driven mode is the only way to select the one-shot path without forking the image.

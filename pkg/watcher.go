@@ -61,24 +61,19 @@ type watcher struct {
 	seedVersion           string
 }
 
-// Poll implements Watcher. One cycle:
-//  1. Load cursor (cold-start safe).
-//  2. Query go.dev for the max stable version — on error hold the cursor,
-//     record go_dev_error, return nil.
-//  3. Cold start (empty cursor): with no seedVersion, seed cursor to latest and
-//     emit nothing; with a seedVersion, seed cursor to that lower version and
-//     fall through to the comparison so the first poll emits a task for latest.
-//  4. latest > cursor: check the docker image for latest exists — if not yet
-//     published, hold the cursor, record image_not_ready, retry next cycle.
-//  5. Image exists: build + publish one task; advance cursor on publish success.
-//  6. latest <= cursor: record version_unchanged (no task).
-//  7. Record success.
+// Poll implements Watcher. One stateless cycle:
+//  1. Query go.dev for the max stable version — on error record go_dev_error,
+//     return nil.
+//  2. Query go.dev for the second-max stable version, which supplies
+//     previous_version and release_kind. A Job has no PVC and therefore no
+//     cursor to diff against, so the diff comes from the upstream list itself.
+//  3. Check the docker image for latest exists — if not yet published, record
+//     image_not_ready and retry next cycle.
+//  4. Build + publish one task carrying a `recurring:` marker. Emission is
+//     unconditional: the controller holds a terminal recurring instance in its
+//     slot (isRecurringTaskCommand → ReopenTerminal: false) instead of
+//     re-materializing it, so a completed update task is never re-filed.
 func (w *watcher) Poll(ctx context.Context) error {
-	cursor, err := LoadCursor(ctx, w.cursorPath)
-	if err != nil {
-		return errors.Wrapf(ctx, err, "load cursor path=%s", w.cursorPath)
-	}
-
 	latest, err := w.client.LatestStable(ctx)
 	if err != nil {
 		w.metrics.IncPollCycle("go_dev_error")
@@ -86,31 +81,15 @@ func (w *watcher) Poll(ctx context.Context) error {
 		return nil
 	}
 
-	if cursor.LastSeenVersion == "" {
-		if w.seedVersion == "" {
-			w.seedCursor(ctx, cursor, latest)
-			w.metrics.IncPollCycle("success")
-			return nil
-		}
-		if err := w.seedFromConfigured(ctx, cursor); err != nil {
-			return errors.Wrapf(ctx, err, "seed cursor from configured version")
-		}
-		// Fall through: compare latest against the seeded version so a task is
-		// emitted when latest > seedVersion and the cursor advances to latest.
-	}
-
-	previous, err := ParseVersion(ctx, cursor.LastSeenVersion)
+	previous, err := w.client.SecondLatestStable(ctx)
 	if err != nil {
-		return errors.Wrapf(ctx, err, "parse stored cursor version %q", cursor.LastSeenVersion)
+		w.metrics.IncPollCycle("go_dev_error")
+		glog.Warningf("poll cycle aborted: second-latest query failed err=%v", err)
+		return nil
 	}
 
-	if previous.Less(latest) {
-		if err := w.emitWhenImageReady(ctx, cursor, previous, latest); err != nil {
-			return err
-		}
-	} else {
-		w.metrics.IncFilterSkipped("version_unchanged")
-		glog.V(2).Infof("version unchanged latest=%s cursor=%s", latest, previous)
+	if err := w.emitWhenImageReady(ctx, previous, latest); err != nil {
+		return err
 	}
 
 	w.metrics.IncPollCycle("success")
@@ -122,7 +101,6 @@ func (w *watcher) Poll(ctx context.Context) error {
 // 1day before the image exists) the cursor is held and the next cycle retries.
 func (w *watcher) emitWhenImageReady(
 	ctx context.Context,
-	cursor *Cursor,
 	previous, latest Version,
 ) error {
 	exists, err := w.imageChecker.ImageExists(ctx, latest)
@@ -134,11 +112,11 @@ func (w *watcher) emitWhenImageReady(
 	if !exists {
 		w.metrics.IncFilterSkipped("image_not_ready")
 		glog.V(2).
-			Infof("image not ready latest=%s cursor=%s — holding, retry next cycle", latest, previous)
+			Infof("image not ready latest=%s previous=%s — holding, retry next cycle", latest, previous)
 		w.metrics.IncPollCycle("success")
 		return nil
 	}
-	if err := w.emit(ctx, cursor, previous, latest); err != nil {
+	if err := w.emit(ctx, previous, latest); err != nil {
 		w.metrics.IncPollCycle("build_error")
 		glog.Errorf("emit task failed latest=%s: %v", latest, err)
 		return nil
@@ -146,37 +124,13 @@ func (w *watcher) emitWhenImageReady(
 	return nil
 }
 
-// seedCursor records the current max stable version on cold start without
-// emitting a task (avoids a spurious update task on first run).
-func (w *watcher) seedCursor(ctx context.Context, cursor *Cursor, latest Version) {
-	cursor.LastSeenVersion = latest.String()
-	if err := SaveCursor(ctx, w.cursorPath, cursor); err != nil {
-		glog.Warningf("save cursor failed on cold-start path=%s err=%v", w.cursorPath, err)
-	}
-	glog.V(2).Infof("cold-start seed version=%s", latest)
-}
-
-// seedFromConfigured seeds the cold-start cursor with the configured
-// seedVersion (a version lower than the current latest) and persists it, so the
-// caller can fall through to the normal comparison and emit a task for latest.
-// Returns an error if seedVersion is not a valid Go version.
-func (w *watcher) seedFromConfigured(ctx context.Context, cursor *Cursor) error {
-	if _, err := ParseVersion(ctx, w.seedVersion); err != nil {
-		return errors.Wrapf(ctx, err, "parse seed version %q", w.seedVersion)
-	}
-	cursor.LastSeenVersion = w.seedVersion
-	if err := SaveCursor(ctx, w.cursorPath, cursor); err != nil {
-		glog.Warningf("save cursor failed on cold-start seed path=%s err=%v", w.cursorPath, err)
-	}
-	glog.V(2).Infof("cold-start seed from configured version=%s", w.seedVersion)
-	return nil
-}
-
-// emit builds and publishes one task for the advance from previous to latest,
-// advancing the cursor only when the publish succeeds. A build error (e.g. a
-// template-execution failure) is returned so the caller can skip cleanly
-// without advancing the cursor.
-func (w *watcher) emit(ctx context.Context, cursor *Cursor, previous, latest Version) error {
+// emit builds and publishes one task for the advance from previous to latest.
+// A build error (e.g. a template-execution failure) is returned so the caller
+// can skip cleanly. No cursor is written: the emitted task carries a
+// `recurring:` marker, and the controller — not a pod-local file — is what
+// dedupes, so a stateless Job re-emitting every run is a no-op once the task
+// exists.
+func (w *watcher) emit(ctx context.Context, previous, latest Version) error {
 	releaseKind := "patch"
 	if latest.Major != previous.Major || latest.Minor != previous.Minor {
 		releaseKind = "minor"
@@ -189,19 +143,14 @@ func (w *watcher) emit(ctx context.Context, cursor *Cursor, previous, latest Ver
 		return nil
 	}
 	// Publish the go-release notification alongside the task (same event, both
-	// channels). Best-effort: the task backstop has already advanced the cursor
-	// and the notification is not part of the cursor/dedup contract — a transient
-	// failure surfaces via the notification_error metric, and the next release
-	// re-arms delivery.
+	// channels). Best-effort: the task is the deduplicated backstop and the
+	// notification is not part of the dedup contract — a transient failure
+	// surfaces via the notification_error metric, and the next run re-arms
+	// delivery.
 	if ncmd, nerr := BuildNotificationCommand(ctx, latest.String(), previous.String(), releaseKind); nerr != nil {
 		glog.Warningf("build notification failed latest=%s err=%v", latest, nerr)
 	} else if !w.notificationPublisher.PublishNotification(ctx, ncmd) {
 		glog.Warningf("publish notification failed latest=%s", latest)
-	}
-	cursor.LastSeenVersion = latest.String()
-	if err := SaveCursor(ctx, w.cursorPath, cursor); err != nil {
-		// Task was already published; controller dedup absorbs re-emit next cycle.
-		glog.Warningf("save cursor failed post-publish path=%s err=%v", w.cursorPath, err)
 	}
 	return nil
 }

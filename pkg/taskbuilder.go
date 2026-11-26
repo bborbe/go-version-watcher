@@ -165,6 +165,12 @@ func buildFrontmatter(
 		"previous_version":  previousVersion,
 		"release_kind":      releaseKind,
 		"release_notes_url": releaseNotesBaseURL + newVersion,
+		// `recurring:` marks this file as its own dedupe state. The task
+		// controller holds a terminal recurring instance in its slot instead of
+		// re-materializing it (isRecurringTaskCommand → ReopenTerminal: false),
+		// which is what lets a stateless Job re-emit every run without re-filing
+		// the update once it has been completed.
+		"recurring": "go-version:" + newVersion,
 	}
 }
 
