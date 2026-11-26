@@ -51,6 +51,12 @@ type application struct {
 	SeedVersion  string           `required:"false" arg:"seed-version"  env:"SEED_VERSION"  usage:"Optional go version (e.g. go1.26.4) to seed the cursor with on cold-start instead of the current latest; makes the first poll emit a task for the current latest. Empty = seed to latest, emit nothing."`
 	KafkaBrokers libkafka.Brokers `required:"true"  arg:"kafka-brokers" env:"KAFKA_BROKERS" usage:"Comma-separated Kafka broker list"`
 
+	// RunOnce runs a single poll cycle and exits instead of starting the HTTP
+	// server and the poll loop. It exists so a Kubernetes Job can reuse this
+	// image: AgentConfiguration carries no command/args field, so an env-driven
+	// mode is the only way to select the one-shot path without forking the image.
+	RunOnce bool `required:"false" arg:"run-once" env:"RUN_ONCE" usage:"Run one poll cycle then exit (Kubernetes Job mode). Skips the HTTP server and the poll loop."`
+
 	TaskAssignee string `required:"true"  arg:"task-assignee" env:"TASK_ASSIGNEE" usage:"Frontmatter assignee for published go-version tasks"                                                                                                                 default:"human"`
 	TaskStatus   string `required:"true"  arg:"task-status"   env:"TASK_STATUS"   usage:"Frontmatter status for published go-version tasks"                                                                                                                   default:"in_progress"`
 	TaskPhase    string `required:"true"  arg:"task-phase"    env:"TASK_PHASE"    usage:"Frontmatter phase for published go-version tasks"                                                                                                                    default:"todo"`
@@ -122,6 +128,11 @@ func (a *application) Run(ctx context.Context, _ libsentry.Client) error {
 		"go-version-watcher starting stage=%s interval=%s listen=%s",
 		a.Stage, a.PollInterval, a.Listen,
 	)
+
+	if a.RunOnce {
+		glog.V(2).Infof("go-version-watcher run-once stage=%s", a.Stage)
+		return w.Poll(ctx)
+	}
 
 	return run.CancelOnFirstFinish(ctx,
 		a.pollLoop(w.Poll, pollInterval),
