@@ -25,6 +25,34 @@ type GoDevClient struct {
 		result1 pkg.Version
 		result2 error
 	}
+	LatestTwoStableStub        func(context.Context) (pkg.Version, pkg.Version, error)
+	latestTwoStableMutex       sync.RWMutex
+	latestTwoStableArgsForCall []struct {
+		arg1 context.Context
+	}
+	latestTwoStableReturns struct {
+		result1 pkg.Version
+		result2 pkg.Version
+		result3 error
+	}
+	latestTwoStableReturnsOnCall map[int]struct {
+		result1 pkg.Version
+		result2 pkg.Version
+		result3 error
+	}
+	SecondLatestStableStub        func(context.Context) (pkg.Version, error)
+	secondLatestStableMutex       sync.RWMutex
+	secondLatestStableArgsForCall []struct {
+		arg1 context.Context
+	}
+	secondLatestStableReturns struct {
+		result1 pkg.Version
+		result2 error
+	}
+	secondLatestStableReturnsOnCall map[int]struct {
+		result1 pkg.Version
+		result2 error
+	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
 }
@@ -88,6 +116,137 @@ func (fake *GoDevClient) LatestStableReturnsOnCall(i int, result1 pkg.Version, r
 		})
 	}
 	fake.latestStableReturnsOnCall[i] = struct {
+		result1 pkg.Version
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *GoDevClient) LatestTwoStable(arg1 context.Context) (pkg.Version, pkg.Version, error) {
+	fake.latestTwoStableMutex.Lock()
+	ret, specificReturn := fake.latestTwoStableReturnsOnCall[len(fake.latestTwoStableArgsForCall)]
+	fake.latestTwoStableArgsForCall = append(fake.latestTwoStableArgsForCall, struct {
+		arg1 context.Context
+	}{arg1})
+	stub := fake.LatestTwoStableStub
+	fakeReturns := fake.latestTwoStableReturns
+	fake.recordInvocation("LatestTwoStable", []interface{}{arg1})
+	fake.latestTwoStableMutex.Unlock()
+	if stub != nil {
+		return stub(arg1)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2, ret.result3
+	}
+	return fakeReturns.result1, fakeReturns.result2, fakeReturns.result3
+}
+
+func (fake *GoDevClient) LatestTwoStableCallCount() int {
+	fake.latestTwoStableMutex.RLock()
+	defer fake.latestTwoStableMutex.RUnlock()
+	return len(fake.latestTwoStableArgsForCall)
+}
+
+func (fake *GoDevClient) LatestTwoStableCalls(stub func(context.Context) (pkg.Version, pkg.Version, error)) {
+	fake.latestTwoStableMutex.Lock()
+	defer fake.latestTwoStableMutex.Unlock()
+	fake.LatestTwoStableStub = stub
+}
+
+func (fake *GoDevClient) LatestTwoStableArgsForCall(i int) context.Context {
+	fake.latestTwoStableMutex.RLock()
+	defer fake.latestTwoStableMutex.RUnlock()
+	argsForCall := fake.latestTwoStableArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *GoDevClient) LatestTwoStableReturns(result1 pkg.Version, result2 pkg.Version, result3 error) {
+	fake.latestTwoStableMutex.Lock()
+	defer fake.latestTwoStableMutex.Unlock()
+	fake.LatestTwoStableStub = nil
+	fake.latestTwoStableReturns = struct {
+		result1 pkg.Version
+		result2 pkg.Version
+		result3 error
+	}{result1, result2, result3}
+}
+
+func (fake *GoDevClient) LatestTwoStableReturnsOnCall(i int, result1 pkg.Version, result2 pkg.Version, result3 error) {
+	fake.latestTwoStableMutex.Lock()
+	defer fake.latestTwoStableMutex.Unlock()
+	fake.LatestTwoStableStub = nil
+	if fake.latestTwoStableReturnsOnCall == nil {
+		fake.latestTwoStableReturnsOnCall = make(map[int]struct {
+			result1 pkg.Version
+			result2 pkg.Version
+			result3 error
+		})
+	}
+	fake.latestTwoStableReturnsOnCall[i] = struct {
+		result1 pkg.Version
+		result2 pkg.Version
+		result3 error
+	}{result1, result2, result3}
+}
+
+func (fake *GoDevClient) SecondLatestStable(arg1 context.Context) (pkg.Version, error) {
+	fake.secondLatestStableMutex.Lock()
+	ret, specificReturn := fake.secondLatestStableReturnsOnCall[len(fake.secondLatestStableArgsForCall)]
+	fake.secondLatestStableArgsForCall = append(fake.secondLatestStableArgsForCall, struct {
+		arg1 context.Context
+	}{arg1})
+	stub := fake.SecondLatestStableStub
+	fakeReturns := fake.secondLatestStableReturns
+	fake.recordInvocation("SecondLatestStable", []interface{}{arg1})
+	fake.secondLatestStableMutex.Unlock()
+	if stub != nil {
+		return stub(arg1)
+	}
+	if specificReturn {
+		return ret.result1, ret.result2
+	}
+	return fakeReturns.result1, fakeReturns.result2
+}
+
+func (fake *GoDevClient) SecondLatestStableCallCount() int {
+	fake.secondLatestStableMutex.RLock()
+	defer fake.secondLatestStableMutex.RUnlock()
+	return len(fake.secondLatestStableArgsForCall)
+}
+
+func (fake *GoDevClient) SecondLatestStableCalls(stub func(context.Context) (pkg.Version, error)) {
+	fake.secondLatestStableMutex.Lock()
+	defer fake.secondLatestStableMutex.Unlock()
+	fake.SecondLatestStableStub = stub
+}
+
+func (fake *GoDevClient) SecondLatestStableArgsForCall(i int) context.Context {
+	fake.secondLatestStableMutex.RLock()
+	defer fake.secondLatestStableMutex.RUnlock()
+	argsForCall := fake.secondLatestStableArgsForCall[i]
+	return argsForCall.arg1
+}
+
+func (fake *GoDevClient) SecondLatestStableReturns(result1 pkg.Version, result2 error) {
+	fake.secondLatestStableMutex.Lock()
+	defer fake.secondLatestStableMutex.Unlock()
+	fake.SecondLatestStableStub = nil
+	fake.secondLatestStableReturns = struct {
+		result1 pkg.Version
+		result2 error
+	}{result1, result2}
+}
+
+func (fake *GoDevClient) SecondLatestStableReturnsOnCall(i int, result1 pkg.Version, result2 error) {
+	fake.secondLatestStableMutex.Lock()
+	defer fake.secondLatestStableMutex.Unlock()
+	fake.SecondLatestStableStub = nil
+	if fake.secondLatestStableReturnsOnCall == nil {
+		fake.secondLatestStableReturnsOnCall = make(map[int]struct {
+			result1 pkg.Version
+			result2 error
+		})
+	}
+	fake.secondLatestStableReturnsOnCall[i] = struct {
 		result1 pkg.Version
 		result2 error
 	}{result1, result2}

@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"sort"
 
 	"github.com/bborbe/errors"
 	"github.com/golang/glog"
@@ -26,6 +27,18 @@ type GoDevClient interface {
 	// It returns an error when the request fails, the response is malformed, or
 	// no stable, parseable version is present.
 	LatestStable(ctx context.Context) (Version, error)
+	// SecondLatestStable returns the second-highest stable Go version — the
+	// release the latest one superseded. A stateless Job has no cursor to diff
+	// against, so this is where `previous_version` and `release_kind` come from.
+	// It returns an error when the request fails, the response is malformed, or
+	// fewer than two stable versions are present.
+	SecondLatestStable(ctx context.Context) (Version, error)
+	// LatestTwoStable returns the highest and second-highest stable versions from
+	// ONE upstream fetch. Callers that need both must use this rather than calling
+	// LatestStable and SecondLatestStable in sequence — two calls are two requests,
+	// and the pair can straddle a release so `previous` describes a different list
+	// than `latest`.
+	LatestTwoStable(ctx context.Context) (Version, Version, error)
 }
 
 // goDevRelease is the subset of the go.dev release JSON the watcher consumes.
@@ -51,6 +64,30 @@ func (c *goDevClient) LatestStable(ctx context.Context) (Version, error) {
 		return Version{}, err
 	}
 	return maxStable(ctx, releases)
+}
+
+func (c *goDevClient) SecondLatestStable(ctx context.Context) (Version, error) {
+	_, previous, err := c.LatestTwoStable(ctx)
+	return previous, err
+}
+
+func (c *goDevClient) LatestTwoStable(ctx context.Context) (Version, Version, error) {
+	releases, err := c.fetch(ctx)
+	if err != nil {
+		return Version{}, Version{}, err
+	}
+	stable := stableSortedDescending(ctx, releases)
+	if len(stable) == 0 {
+		return Version{}, Version{}, errors.Errorf(
+			ctx, "no stable go version found in go.dev response",
+		)
+	}
+	if len(stable) < 2 {
+		return Version{}, Version{}, errors.Errorf(
+			ctx, "fewer than two stable go versions in go.dev response (found %d)", len(stable),
+		)
+	}
+	return stable[0], stable[1], nil
 }
 
 func (c *goDevClient) fetch(ctx context.Context) ([]goDevRelease, error) {
@@ -81,11 +118,11 @@ func (c *goDevClient) fetch(ctx context.Context) ([]goDevRelease, error) {
 	return releases, nil
 }
 
-// maxStable returns the maximum version among stable entries, skipping any
-// entry that is not stable or does not parse as a Go version.
-func maxStable(ctx context.Context, releases []goDevRelease) (Version, error) {
-	var best Version
-	found := false
+// stableSortedDescending returns the stable, parseable versions from the go.dev
+// response in descending order. Entries that are not stable or do not parse are
+// skipped (logged at V(2)) rather than failing the whole cycle.
+func stableSortedDescending(ctx context.Context, releases []goDevRelease) []Version {
+	stable := make([]Version, 0, len(releases))
 	for _, r := range releases {
 		if !r.Stable {
 			continue
@@ -95,13 +132,18 @@ func maxStable(ctx context.Context, releases []goDevRelease) (Version, error) {
 			glog.V(2).Infof("skip unparseable go.dev version %q: %v", r.Version, err)
 			continue
 		}
-		if !found || best.Less(v) {
-			best = v
-			found = true
-		}
+		stable = append(stable, v)
 	}
-	if !found {
+	sort.Slice(stable, func(i, j int) bool { return stable[j].Less(stable[i]) })
+	return stable
+}
+
+// maxStable returns the maximum version among stable entries, skipping any
+// entry that is not stable or does not parse as a Go version.
+func maxStable(ctx context.Context, releases []goDevRelease) (Version, error) {
+	stable := stableSortedDescending(ctx, releases)
+	if len(stable) == 0 {
 		return Version{}, errors.Errorf(ctx, "no stable go version found in go.dev response")
 	}
-	return best, nil
+	return stable[0], nil
 }

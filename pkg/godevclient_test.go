@@ -58,6 +58,30 @@ var _ = Describe("pkg.GoDevClient", func() {
 			Expect(err).NotTo(HaveOccurred())
 			Expect(v.String()).To(Equal("go1.26.10"))
 		})
+
+		It("returns the top two from one fetch, skipping unstable entries", func() {
+			latest, previous, err := client().LatestTwoStable(ctx)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(latest.String()).To(Equal("go1.26.10"))
+			Expect(previous.String()).To(Equal("go1.26.5"))
+		})
+
+		It("SecondLatestStable returns the entry below the max", func() {
+			v, err := client().SecondLatestStable(ctx)
+			Expect(err).NotTo(HaveOccurred())
+			Expect(v.String()).To(Equal("go1.26.5"))
+		})
+	})
+
+	Context("with exactly one stable entry", func() {
+		BeforeEach(func() {
+			payload = `[{"version":"go1.26.5","stable":true}]`
+		})
+
+		It("LatestTwoStable errors — there is no previous version to diff against", func() {
+			_, _, err := client().LatestTwoStable(ctx)
+			Expect(err).To(HaveOccurred())
+		})
 	})
 
 	Context("with no stable entries", func() {

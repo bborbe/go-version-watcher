@@ -17,6 +17,8 @@ import (
 	"os"
 	"time"
 
+	agentlib "github.com/bborbe/agent"
+	task "github.com/bborbe/agent/command/task"
 	"github.com/bborbe/cqrs/base"
 	"github.com/bborbe/errors"
 	libhttp "github.com/bborbe/http"
@@ -56,6 +58,13 @@ type application struct {
 	// image: AgentConfiguration carries no command/args field, so an env-driven
 	// mode is the only way to select the one-shot path without forking the image.
 	RunOnce bool `required:"false" arg:"run-once" env:"RUN_ONCE" usage:"Run one poll cycle then exit (Kubernetes Job mode). Skips the HTTP server and the poll loop."`
+
+	// TaskID is the identifier of the task this Job was started for, passed by
+	// the executor as TASK_ID. When set, a successful run-once cycle closes that
+	// task: a succeeded Job that leaves its task open is suppressed and then
+	// parked at human_review, so without this the check task never reaches a
+	// terminal state and one non-terminal row accumulates per day.
+	TaskID string `required:"false" arg:"task-id" env:"TASK_ID" usage:"Identifier of the task this Job runs for; when set, a successful run-once cycle completes it."`
 
 	TaskAssignee string `required:"true"  arg:"task-assignee" env:"TASK_ASSIGNEE" usage:"Frontmatter assignee for published go-version tasks"                                                                                                                 default:"human"`
 	TaskStatus   string `required:"true"  arg:"task-status"   env:"TASK_STATUS"   usage:"Frontmatter status for published go-version tasks"                                                                                                                   default:"in_progress"`
@@ -130,14 +139,44 @@ func (a *application) Run(ctx context.Context, _ libsentry.Client) error {
 	)
 
 	if a.RunOnce {
-		glog.V(2).Infof("go-version-watcher run-once stage=%s", a.Stage)
-		return w.Poll(ctx)
+		glog.V(2).Infof("go-version-watcher run-once stage=%s task=%s", a.Stage, a.TaskID)
+		if err := w.Poll(ctx); err != nil {
+			return err
+		}
+		return a.completeCheckTask(
+			ctx,
+			factory.CreateKafkaCompleteSender(syncProducer, a.TopicPrefix, a.TargetVault),
+		)
 	}
 
 	return run.CancelOnFirstFinish(ctx,
 		a.pollLoop(w.Poll, pollInterval),
 		a.createHTTPServer(w),
 	)
+}
+
+// completeCheckTask closes the task this Job was started for, so the daily check
+// reaches a terminal state instead of being parked at human_review. A no-op when
+// TASK_ID is unset (long-running mode, or a Job started outside the executor).
+//
+// Takes the sender rather than building one so the behaviour is testable without
+// a Kafka producer.
+func (a *application) completeCheckTask(
+	ctx context.Context,
+	sender task.CompleteCommandSender,
+) error {
+	if a.TaskID == "" {
+		glog.V(2).Info("run-once: TASK_ID unset — no check task to complete")
+		return nil
+	}
+	if err := sender.SendCommand(ctx, task.CompleteCommand{
+		TaskIdentifier: agentlib.TaskIdentifier(a.TaskID),
+		TargetVault:    a.TargetVault,
+	}); err != nil {
+		return errors.Wrapf(ctx, err, "complete check task %s", a.TaskID)
+	}
+	glog.V(2).Infof("run-once: completed check task %s", a.TaskID)
+	return nil
 }
 
 // createHTTPServer serves the mandatory triple (/healthz, /readiness, /metrics)

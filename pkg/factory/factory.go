@@ -32,6 +32,23 @@ func CreateKafkaSender(
 	return task.NewCreateCommandSender(sender, defaultVault)
 }
 
+// CreateKafkaCompleteSender constructs a typed complete-task command sender
+// backed by the same Kafka sync producer used for task creation. defaultVault is
+// the Obsidian vault slug substituted into each command's TargetVault when unset
+// (empty = controller default, openclaw).
+//
+// This is how a one-shot Job closes its own check task: the executor passes the
+// task's identifier as TASK_ID, and a succeeded Job that leaves its task open is
+// suppressed then parked at human_review instead of reaching a terminal state.
+func CreateKafkaCompleteSender(
+	syncProducer libkafka.SyncProducer,
+	topicPrefix base.TopicPrefix,
+	defaultVault string,
+) task.CompleteCommandSender {
+	sender := cdb.NewCommandObjectSender(syncProducer, topicPrefix, log.DefaultSamplerFactory)
+	return task.NewCompleteCommandSender(sender, defaultVault)
+}
+
 // CreateKafkaNotificationSender constructs a typed notification-publish command
 // sender backed by the same Kafka sync producer used for task commands. The
 // CDB sender derives the topic ({branch}-core-notification-v1-request) from
@@ -70,12 +87,10 @@ func CreateWatcher(
 		pkg.DefaultDockerHubRegistryURL,
 	)
 	publisher := pkg.NewTaskPublisher(sender, metrics)
-	notificationPublisher := pkg.NewNotificationPublisher(notificationSender, metrics)
 	return pkg.NewWatcher(
 		client,
 		imageChecker,
 		publisher,
-		notificationPublisher,
 		metrics,
 		cursorPath,
 		cfg,
