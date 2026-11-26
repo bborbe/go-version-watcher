@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## v0.11.0
 
 - fix: **a failed task publish now fails the cycle instead of returning `nil`.** The run-once path gates `completeCheckTask` on `Poll`'s error, so returning `nil` on a failed publish closed the check task as done while no update task existed — the release signal was lost silently and nothing was left for a human to see. The failure now returns an error and records a distinct `publish_error` cycle metric, so a build failure (`build_error`) and a publish failure no longer collapse into one label.
 - refactor: drop the watcher's unused `notificationPublisher` collaborator. The go-release notification is no longer published from the stateless path (see below), so the field, the constructor parameter and the factory's wiring for it were dead surface.
