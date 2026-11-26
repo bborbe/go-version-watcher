@@ -33,6 +33,12 @@ type GoDevClient interface {
 	// It returns an error when the request fails, the response is malformed, or
 	// fewer than two stable versions are present.
 	SecondLatestStable(ctx context.Context) (Version, error)
+	// LatestTwoStable returns the highest and second-highest stable versions from
+	// ONE upstream fetch. Callers that need both must use this rather than calling
+	// LatestStable and SecondLatestStable in sequence — two calls are two requests,
+	// and the pair can straddle a release so `previous` describes a different list
+	// than `latest`.
+	LatestTwoStable(ctx context.Context) (Version, Version, error)
 }
 
 // goDevRelease is the subset of the go.dev release JSON the watcher consumes.
@@ -61,17 +67,27 @@ func (c *goDevClient) LatestStable(ctx context.Context) (Version, error) {
 }
 
 func (c *goDevClient) SecondLatestStable(ctx context.Context) (Version, error) {
+	_, previous, err := c.LatestTwoStable(ctx)
+	return previous, err
+}
+
+func (c *goDevClient) LatestTwoStable(ctx context.Context) (Version, Version, error) {
 	releases, err := c.fetch(ctx)
 	if err != nil {
-		return Version{}, err
+		return Version{}, Version{}, err
 	}
 	stable := stableSortedDescending(ctx, releases)
+	if len(stable) == 0 {
+		return Version{}, Version{}, errors.Errorf(
+			ctx, "no stable go version found in go.dev response",
+		)
+	}
 	if len(stable) < 2 {
-		return Version{}, errors.Errorf(
+		return Version{}, Version{}, errors.Errorf(
 			ctx, "fewer than two stable go versions in go.dev response (found %d)", len(stable),
 		)
 	}
-	return stable[1], nil
+	return stable[0], stable[1], nil
 }
 
 func (c *goDevClient) fetch(ctx context.Context) ([]goDevRelease, error) {

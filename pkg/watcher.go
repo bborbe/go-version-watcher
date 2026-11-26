@@ -74,17 +74,20 @@ type watcher struct {
 //     slot (isRecurringTaskCommand → ReopenTerminal: false) instead of
 //     re-materializing it, so a completed update task is never re-filed.
 func (w *watcher) Poll(ctx context.Context) error {
-	latest, err := w.client.LatestStable(ctx)
+	latest, previous, err := w.client.LatestTwoStable(ctx)
 	if err != nil {
 		w.metrics.IncPollCycle("go_dev_error")
-		glog.Warningf("poll cycle aborted: go.dev query failed err=%v", err)
-		return nil
+		return errors.Wrapf(ctx, err, "query go.dev stable versions")
 	}
 
-	previous, err := w.client.SecondLatestStable(ctx)
-	if err != nil {
-		w.metrics.IncPollCycle("go_dev_error")
-		glog.Warningf("poll cycle aborted: second-latest query failed err=%v", err)
+	// Guard: a list whose top two entries are equal (or inverted) is not a
+	// release advance, so there is nothing to file. Without this a Job would
+	// emit for the same version on every run and rely entirely on the
+	// controller's dedup to absorb it.
+	if !previous.Less(latest) {
+		w.metrics.IncFilterSkipped("version_unchanged")
+		glog.V(2).Infof("version unchanged latest=%s previous=%s", latest, previous)
+		w.metrics.IncPollCycle("success")
 		return nil
 	}
 
@@ -106,20 +109,18 @@ func (w *watcher) emitWhenImageReady(
 	exists, err := w.imageChecker.ImageExists(ctx, latest)
 	if err != nil {
 		w.metrics.IncPollCycle("image_check_error")
-		glog.Warningf("image check failed latest=%s err=%v", latest, err)
-		return nil
+		return errors.Wrapf(ctx, err, "check docker image for %s", latest)
 	}
 	if !exists {
 		w.metrics.IncFilterSkipped("image_not_ready")
 		glog.V(2).
-			Infof("image not ready latest=%s previous=%s — holding, retry next cycle", latest, previous)
+			Infof("image not ready latest=%s previous=%s — retry next cycle", latest, previous)
 		w.metrics.IncPollCycle("success")
 		return nil
 	}
 	if err := w.emit(ctx, previous, latest); err != nil {
 		w.metrics.IncPollCycle("build_error")
-		glog.Errorf("emit task failed latest=%s: %v", latest, err)
-		return nil
+		return errors.Wrapf(ctx, err, "emit task for %s", latest)
 	}
 	return nil
 }
@@ -142,15 +143,12 @@ func (w *watcher) emit(ctx context.Context, previous, latest Version) error {
 	if !w.publisher.PublishCreate(ctx, cmd) {
 		return nil
 	}
-	// Publish the go-release notification alongside the task (same event, both
-	// channels). Best-effort: the task is the deduplicated backstop and the
-	// notification is not part of the dedup contract — a transient failure
-	// surfaces via the notification_error metric, and the next run re-arms
-	// delivery.
-	if ncmd, nerr := BuildNotificationCommand(ctx, latest.String(), previous.String(), releaseKind); nerr != nil {
-		glog.Warningf("build notification failed latest=%s err=%v", latest, nerr)
-	} else if !w.notificationPublisher.PublishNotification(ctx, ncmd) {
-		glog.Warningf("publish notification failed latest=%s", latest)
-	}
+	// The go-release notification is deliberately NOT published from here. It has
+	// no dedup of its own: the notification command carries no idempotency key and
+	// the notification core keeps no seen-store, so a stateless Job would re-send
+	// the same announcement on every run. The task's `recurring:` marker dedupes
+	// the task; nothing dedupes the notification, so it cannot live on this path.
+	// Re-homing it to the task-created consumer (which sees each version exactly
+	// once) is a separate change — see the task this PR belongs to.
 	return nil
 }

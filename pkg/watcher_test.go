@@ -75,8 +75,7 @@ var _ = Describe("pkg.Watcher.Poll", func() {
 
 	Context("stateless emission", func() {
 		BeforeEach(func() {
-			client.LatestStableReturns(mustVersion("go1.26.5"), nil)
-			client.SecondLatestStableReturns(mustVersion("go1.26.4"), nil)
+			client.LatestTwoStableReturns(mustVersion("go1.26.5"), mustVersion("go1.26.4"), nil)
 			imageChecker.ImageExistsReturns(true, nil)
 			publisher.PublishCreateReturns(true)
 		})
@@ -104,20 +103,19 @@ var _ = Describe("pkg.Watcher.Poll", func() {
 			Expect(publisher.PublishCreateCallCount()).To(Equal(2))
 		})
 
-		It("publishes one go-release notification for the same event", func() {
+		It("publishes NO go-release notification — it has no dedup of its own", func() {
+			// The notification command carries no idempotency key and the
+			// notification core keeps no seen-store, so a stateless Job would
+			// re-announce the same version every run. It is re-homed to the
+			// task-created consumer rather than published from this path.
 			Expect(w.Poll(ctx)).To(Succeed())
-			Expect(notificationPublisher.PublishNotificationCallCount()).To(Equal(1))
-			_, ncmd := notificationPublisher.PublishNotificationArgsForCall(0)
-			Expect(ncmd.Type.String()).To(Equal("go-release"))
-			Expect(ncmd.Metadata["version"]).To(Equal("go1.26.5"))
-			Expect(ncmd.Metadata["release_kind"]).To(Equal("patch"))
+			Expect(notificationPublisher.PublishNotificationCallCount()).To(Equal(0))
 		})
 	})
 
 	Context("new minor version", func() {
 		BeforeEach(func() {
-			client.LatestStableReturns(mustVersion("go1.27.0"), nil)
-			client.SecondLatestStableReturns(mustVersion("go1.26.5"), nil)
+			client.LatestTwoStableReturns(mustVersion("go1.27.0"), mustVersion("go1.26.5"), nil)
 			imageChecker.ImageExistsReturns(true, nil)
 			publisher.PublishCreateReturns(true)
 		})
@@ -131,8 +129,7 @@ var _ = Describe("pkg.Watcher.Poll", func() {
 
 	Context("image not ready", func() {
 		BeforeEach(func() {
-			client.LatestStableReturns(mustVersion("go1.26.5"), nil)
-			client.SecondLatestStableReturns(mustVersion("go1.26.4"), nil)
+			client.LatestTwoStableReturns(mustVersion("go1.26.5"), mustVersion("go1.26.4"), nil)
 			imageChecker.ImageExistsReturns(false, nil)
 		})
 
@@ -146,33 +143,36 @@ var _ = Describe("pkg.Watcher.Poll", func() {
 
 	Context("go.dev query error", func() {
 		BeforeEach(func() {
-			client.LatestStableReturns(pkg.Version{}, stderrors.New("network down"))
+			client.LatestTwoStableReturns(
+				pkg.Version{}, pkg.Version{}, stderrors.New("network down"),
+			)
 		})
 
-		It("records go_dev_error and emits nothing", func() {
-			Expect(w.Poll(ctx)).To(Succeed())
+		// Poll returns the error rather than swallowing it: the run-once path
+		// gates task completion on a successful poll, and a gate that can never
+		// fail certifies nothing.
+		It("returns an error, records go_dev_error, and emits nothing", func() {
+			Expect(w.Poll(ctx)).To(HaveOccurred())
 			Expect(publisher.PublishCreateCallCount()).To(Equal(0))
 			Expect(metrics.IncPollCycleArgsForCall(0)).To(Equal("go_dev_error"))
 		})
 	})
 
-	Context("second-latest query error", func() {
+	Context("upstream reports no version advance", func() {
 		BeforeEach(func() {
-			client.LatestStableReturns(mustVersion("go1.26.5"), nil)
-			client.SecondLatestStableReturns(pkg.Version{}, stderrors.New("network down"))
+			client.LatestTwoStableReturns(mustVersion("go1.26.5"), mustVersion("go1.26.5"), nil)
 		})
 
-		It("records go_dev_error and emits nothing", func() {
+		It("emits nothing and records version_unchanged", func() {
 			Expect(w.Poll(ctx)).To(Succeed())
 			Expect(publisher.PublishCreateCallCount()).To(Equal(0))
-			Expect(metrics.IncPollCycleArgsForCall(0)).To(Equal("go_dev_error"))
+			Expect(filterSkipReasons()).To(ContainElement("version_unchanged"))
 		})
 	})
 
 	Context("publish returns false", func() {
 		BeforeEach(func() {
-			client.LatestStableReturns(mustVersion("go1.26.5"), nil)
-			client.SecondLatestStableReturns(mustVersion("go1.26.4"), nil)
+			client.LatestTwoStableReturns(mustVersion("go1.26.5"), mustVersion("go1.26.4"), nil)
 			imageChecker.ImageExistsReturns(true, nil)
 			publisher.PublishCreateReturns(false)
 		})
@@ -186,13 +186,12 @@ var _ = Describe("pkg.Watcher.Poll", func() {
 
 	Context("docker image check errors", func() {
 		BeforeEach(func() {
-			client.LatestStableReturns(mustVersion("go1.27.0"), nil)
-			client.SecondLatestStableReturns(mustVersion("go1.26.5"), nil)
+			client.LatestTwoStableReturns(mustVersion("go1.27.0"), mustVersion("go1.26.5"), nil)
 			imageChecker.ImageExistsReturns(false, stderrors.New("docker hub down"))
 		})
 
-		It("records image_check_error", func() {
-			Expect(w.Poll(ctx)).To(Succeed())
+		It("returns an error and records image_check_error", func() {
+			Expect(w.Poll(ctx)).To(HaveOccurred())
 			Expect(publisher.PublishCreateCallCount()).To(Equal(0))
 			Expect(metrics.IncPollCycleArgsForCall(0)).To(Equal("image_check_error"))
 		})

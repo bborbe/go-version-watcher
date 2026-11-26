@@ -143,7 +143,10 @@ func (a *application) Run(ctx context.Context, _ libsentry.Client) error {
 		if err := w.Poll(ctx); err != nil {
 			return err
 		}
-		return a.completeCheckTask(ctx, syncProducer)
+		return a.completeCheckTask(
+			ctx,
+			factory.CreateKafkaCompleteSender(syncProducer, a.TopicPrefix, a.TargetVault),
+		)
 	}
 
 	return run.CancelOnFirstFinish(ctx,
@@ -155,15 +158,17 @@ func (a *application) Run(ctx context.Context, _ libsentry.Client) error {
 // completeCheckTask closes the task this Job was started for, so the daily check
 // reaches a terminal state instead of being parked at human_review. A no-op when
 // TASK_ID is unset (long-running mode, or a Job started outside the executor).
+//
+// Takes the sender rather than building one so the behaviour is testable without
+// a Kafka producer.
 func (a *application) completeCheckTask(
 	ctx context.Context,
-	syncProducer libkafka.SyncProducer,
+	sender task.CompleteCommandSender,
 ) error {
 	if a.TaskID == "" {
 		glog.V(2).Info("run-once: TASK_ID unset — no check task to complete")
 		return nil
 	}
-	sender := factory.CreateKafkaCompleteSender(syncProducer, a.TopicPrefix, a.TargetVault)
 	if err := sender.SendCommand(ctx, task.CompleteCommand{
 		TaskIdentifier: agentlib.TaskIdentifier(a.TaskID),
 		TargetVault:    a.TargetVault,
